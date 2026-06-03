@@ -644,8 +644,11 @@ SYSCONFIG_WEAK void SYSCFG_DL_SPI_LCD_init(void) {
 
     /* Enable SPI TX interrupt as a trigger for DMA */
     DL_SPI_enableDMATransmitEvent(SPI_LCD_INST);
+
+    /* Enable SPI RX interrupt as a trigger for DMA */
+    DL_SPI_enableDMAReceiveEvent(SPI_LCD_INST, DL_SPI_DMA_INTERRUPT_RX);
     /* Set RX and TX FIFO threshold levels */
-    DL_SPI_setFIFOThreshold(SPI_LCD_INST, DL_SPI_RX_FIFO_LEVEL_1_2_FULL, DL_SPI_TX_FIFO_LEVEL_1_2_EMPTY);
+    DL_SPI_setFIFOThreshold(SPI_LCD_INST, DL_SPI_RX_FIFO_LEVEL_FULL, DL_SPI_TX_FIFO_LEVEL_EMPTY);
 
     /* Enable module */
     DL_SPI_enable(SPI_LCD_INST);
@@ -703,7 +706,7 @@ static const DL_DMA_Config gDMA_SPI_LCD_TXConfig = {
     .srcIncrement   = DL_DMA_ADDR_INCREMENT,
     .destWidth      = DL_DMA_WIDTH_BYTE,
     .srcWidth       = DL_DMA_WIDTH_BYTE,
-    .trigger        = SPI_LCD_INST_DMA_TRIGGER,
+    .trigger        = SPI_LCD_INST_DMA_TRIGGER_0,
     .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
 };
 
@@ -711,11 +714,27 @@ SYSCONFIG_WEAK void SYSCFG_DL_DMA_SPI_LCD_TX_init(void)
 {
     DL_DMA_initChannel(DMA, DMA_SPI_LCD_TX_CHAN_ID , (DL_DMA_Config *) &gDMA_SPI_LCD_TXConfig);
 }
+static const DL_DMA_Config gDMA_SPI_LCD_RXConfig = {
+    .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
+    .extendedMode   = DL_DMA_NORMAL_MODE,
+    .destIncrement  = DL_DMA_ADDR_INCREMENT,
+    .srcIncrement   = DL_DMA_ADDR_UNCHANGED,
+    .destWidth      = DL_DMA_WIDTH_BYTE,
+    .srcWidth       = DL_DMA_WIDTH_BYTE,
+    .trigger        = SPI_LCD_INST_DMA_TRIGGER_1,
+    .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_DMA_SPI_LCD_RX_init(void)
+{
+    DL_DMA_initChannel(DMA, DMA_SPI_LCD_RX_CHAN_ID , (DL_DMA_Config *) &gDMA_SPI_LCD_RXConfig);
+}
 SYSCONFIG_WEAK void SYSCFG_DL_DMA_init(void){
     SYSCFG_DL_DMA_I2C_TX_init();
     SYSCFG_DL_DMA_I2C_RX_init();
     SYSCFG_DL_DMA_CH0_init();
     SYSCFG_DL_DMA_SPI_LCD_TX_init();
+    SYSCFG_DL_DMA_SPI_LCD_RX_init();
 }
 
 

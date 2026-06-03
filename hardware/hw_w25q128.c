@@ -80,26 +80,6 @@ static bool _waitBusy(void)
     return true;
 }
 
-/* ── 内部: 初始化 DMA RX 通道 (CH3: 原 I2C0 TX, 未使用 → SPI1 RX) ── */
-static bool _dmaRxInitDone = false;
-static void _dmaRxInit(void)
-{
-    if (_dmaRxInitDone) return;
-
-    DL_DMA_Config cfg = {
-        .trigger        = DMA_SPI1_RX_TRIG,
-        .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
-        .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
-        .extendedMode   = DL_DMA_NORMAL_MODE,
-        .srcWidth       = DL_DMA_WIDTH_BYTE,
-        .destWidth      = DL_DMA_WIDTH_BYTE,
-        .srcIncrement   = DL_DMA_ADDR_UNCHANGED,       /* RXDATA 地址固定 */
-        .destIncrement  = DL_DMA_ADDR_INCREMENT,        /* RAM 地址递增 */
-    };
-    DL_DMA_initChannel(DMA, W25Q_DMA_RX_CH, &cfg);
-    _dmaRxInitDone = true;
-}
-
 /* ══════ API ══════ */
 
 uint8_t HW_W25Q128_readSR1(void)
@@ -131,7 +111,6 @@ bool HW_W25Q128_read(uint8_t *buf, uint32_t addr, uint16_t len)
     if (!buf || !len) return false;
 
     _flushRxFifo();
-    _dmaRxInit();
 
     /* 1. CPU 发送读命令 */
     W25Q_CS_LOW();

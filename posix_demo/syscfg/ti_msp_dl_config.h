@@ -216,17 +216,20 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 /* Defines for DMA_I2C_TX */
-#define DMA_I2C_TX_CHAN_ID                                                   (3)
+#define DMA_I2C_TX_CHAN_ID                                                   (4)
 #define I2C_0_INST_DMA_TRIGGER_0                              (DMA_I2C0_TX_TRIG)
 /* Defines for DMA_I2C_RX */
-#define DMA_I2C_RX_CHAN_ID                                                   (2)
+#define DMA_I2C_RX_CHAN_ID                                                   (3)
 #define I2C_0_INST_DMA_TRIGGER_1                              (DMA_I2C0_RX_TRIG)
 /* Defines for DMA_CH0 */
-#define DMA_CH0_CHAN_ID                                                      (1)
+#define DMA_CH0_CHAN_ID                                                      (2)
 #define I2C_NCHD12_INST_DMA_TRIGGER                           (DMA_I2C1_RX_TRIG)
 /* Defines for DMA_SPI_LCD_TX */
-#define DMA_SPI_LCD_TX_CHAN_ID                                               (0)
-#define SPI_LCD_INST_DMA_TRIGGER                              (DMA_SPI1_TX_TRIG)
+#define DMA_SPI_LCD_TX_CHAN_ID                                               (1)
+#define SPI_LCD_INST_DMA_TRIGGER_0                            (DMA_SPI1_TX_TRIG)
+/* Defines for DMA_SPI_LCD_RX */
+#define DMA_SPI_LCD_RX_CHAN_ID                                               (0)
+#define SPI_LCD_INST_DMA_TRIGGER_1                            (DMA_SPI1_RX_TRIG)
 
 
 /* Port definition for Pin Group GPIO_LEDS */

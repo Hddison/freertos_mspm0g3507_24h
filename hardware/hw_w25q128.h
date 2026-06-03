@@ -35,9 +35,9 @@ extern "C" {
 #define W25Q_SECTOR_SIZE        4096
 #define W25Q_PAGE_SIZE          256
 
-/* ── DMA 通道 ── */
-#define W25Q_DMA_TX_CH          0      /* 与 LCD 共用 CH0 (SPI1 TX) */
-#define W25Q_DMA_RX_CH          3      /* 复用 CH3 (原 I2C0 TX, 未使用) */
+/* ── DMA 通道 (对齐 SysConfig 分配) ── */
+#define W25Q_DMA_TX_CH          1      /* SPI1 TX (原 CH0, SysConfig 改为 CH1) */
+#define W25Q_DMA_RX_CH          0      /* SPI1 RX (SysConfig 新增) */
 
 /* ── API ── */
 uint16_t HW_W25Q128_readID(void);

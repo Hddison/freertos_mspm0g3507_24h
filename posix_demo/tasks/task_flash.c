@@ -34,6 +34,11 @@ static void prvFlashTask(void *pvParameters)
         uint16_t id_cpu;
         uint8_t  mfr, dev;
 
+        /* 清除 RX FIFO 中 LCD DMA 残留数据 */
+        while (!DL_SPI_isRXFIFOEmpty(SPI_LCD_INST)) {
+            (void)DL_SPI_receiveData8(SPI_LCD_INST);
+        }
+
         DL_GPIO_clearPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);   /* CS LOW */
         BSP_SPI_txrx_byte(0x90);        /* Read ID cmd */
         BSP_SPI_txrx_byte(0x00);        /* addr[23:16] */

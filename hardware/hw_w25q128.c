@@ -19,6 +19,14 @@
 
 #include "bsp_spi.h"
 
+/* ── 清除 SPI RX FIFO 中的残留数据 (LCD DMA 留下的) ── */
+static void _flushRxFifo(void)
+{
+    while (!DL_SPI_isRXFIFOEmpty(SPI_LCD_INST)) {
+        (void)DL_SPI_receiveData8(SPI_LCD_INST);
+    }
+}
+
 /* ── CS 控制 (PB6, 低有效) ── */
 #define W25Q_CS_LOW()   DL_GPIO_clearPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN)
 #define W25Q_CS_HIGH()  DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN)
@@ -97,6 +105,7 @@ static void _dmaRxInit(void)
 uint8_t HW_W25Q128_readSR1(void)
 {
     uint8_t sr;
+    _flushRxFifo();
     W25Q_CS_LOW();  _spi(W25Q_CMD_READ_SR1);  sr = _spi(0xFF);  W25Q_CS_HIGH();
     return sr;
 }
@@ -104,6 +113,7 @@ uint8_t HW_W25Q128_readSR1(void)
 uint16_t HW_W25Q128_readID(void)
 {
     uint16_t id;
+    _flushRxFifo();
     W25Q_CS_LOW();
     _spi(W25Q_CMD_RDID);        /* 0x90 */
     _spi(0x00);                 /* addr[23:16] */
@@ -120,6 +130,7 @@ bool HW_W25Q128_read(uint8_t *buf, uint32_t addr, uint16_t len)
 {
     if (!buf || !len) return false;
 
+    _flushRxFifo();
     _dmaRxInit();
 
     /* 1. CPU 发送读命令 */

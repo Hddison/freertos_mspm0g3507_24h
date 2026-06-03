@@ -14,8 +14,12 @@
 #include <task.h>
 #include <stdio.h>
 
+#include "ti_msp_dl_config.h"
+#include <ti/driverlib/dl_gpio.h>
+
 #include "app/app_config.h"
 #include "bsp_uart.h"
+#include "bsp_spi.h"
 #include "hw_w25q128.h"
 
 static void prvFlashTask(void *pvParameters)
@@ -25,32 +29,41 @@ static void prvFlashTask(void *pvParameters)
     /* ── 上电等待外设稳定 ── */
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    /* ── 读取 Flash ID ── */
-    uint16_t id = HW_W25Q128_readID();
-    char msg[64];
-    snprintf(msg, sizeof(msg), "[Flash] ID: 0x%04X %s\r\n",
-             id, (id == 0xEF17) ? "W25Q128 OK" : "UNKNOWN");
-    BSP_UART_tx_str(msg);
+    /* ── 测试 1: 纯 CPU 轮询读 Flash ID (绕开 DMA) ── */
+    {
+        uint16_t id_cpu;
+        uint8_t  mfr, dev;
+
+        DL_GPIO_clearPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);   /* CS LOW */
+        BSP_SPI_txrx_byte(0x90);        /* Read ID cmd */
+        BSP_SPI_txrx_byte(0x00);        /* addr[23:16] */
+        BSP_SPI_txrx_byte(0x00);        /* addr[15:8]  */
+        BSP_SPI_txrx_byte(0x00);        /* addr[7:0]   */
+        mfr = BSP_SPI_txrx_byte(0xFF);  /* Mfr  ID     */
+        dev = BSP_SPI_txrx_byte(0xFF);  /* Dev  ID     */
+        DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);     /* CS HIGH */
+        id_cpu = ((uint16_t)mfr << 8) | dev;
+
+        char msg[64];
+        snprintf(msg, sizeof(msg), "[Flash] CPU read ID: 0x%04X (MFR=%02X DEV=%02X)\r\n",
+                 id_cpu, mfr, dev);
+        BSP_UART_tx_str(msg);
+    }
+
+    /* ── 测试 2: DMA 驱动读 Flash ID ── */
+    {
+        uint16_t id = HW_W25Q128_readID();
+        char msg[64];
+        snprintf(msg, sizeof(msg), "[Flash] DMA read ID: 0x%04X\r\n", id);
+        BSP_UART_tx_str(msg);
+    }
 
     /* ── 读 SR1 ── */
-    uint8_t sr1 = HW_W25Q128_readSR1();
-    snprintf(msg, sizeof(msg), "[Flash] SR1: 0x%02X\r\n", sr1);
-    BSP_UART_tx_str(msg);
-
-    /* ── 测试: 读 Sector 0 前 16 字节 ── */
-    vTaskDelay(pdMS_TO_TICKS(100));
     {
-        uint8_t buf[16];
-        if (HW_W25Q128_read(buf, 0, 16)) {
-            snprintf(msg, sizeof(msg),
-                "[Flash] S0: %02X %02X %02X %02X %02X %02X %02X %02X "
-                "%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-                buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
-            BSP_UART_tx_str(msg);
-        } else {
-            BSP_UART_tx_str("[Flash] Read FAILED!\r\n");
-        }
+        uint8_t sr1 = HW_W25Q128_readSR1();
+        char msg[32];
+        snprintf(msg, sizeof(msg), "[Flash] SR1: 0x%02X\r\n", sr1);
+        BSP_UART_tx_str(msg);
     }
 
     BSP_UART_tx_str("[Flash] Task ready\r\n");

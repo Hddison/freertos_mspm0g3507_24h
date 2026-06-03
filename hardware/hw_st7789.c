@@ -122,7 +122,7 @@ static void init_reg(void)
 
 /* ── API ── */
 
-void ST7789_Init(ST7789_DIR dir)
+void ST7789_init(ST7789_DIR dir)
 {
     lcd_dir = dir;
     BLK_0;
@@ -139,7 +139,7 @@ void ST7789_Init(ST7789_DIR dir)
     }
 }
 
-void ST7789_SetWindows(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+void ST7789_setWindows(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
     if (lcd_dir != ST7789_HORIZONTAL) {
         /* 旋转 90°: MV=1, CASET→逻辑Y(+35), RASET→逻辑X */
@@ -160,10 +160,10 @@ void ST7789_SetWindows(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     send_cmd(0x2C);  /* memory write */
 }
 
-void ST7789_Clear(uint16_t color)
+void ST7789_clear(uint16_t color)
 {
     uint32_t total = (uint32_t)ST7789_WIDTH * ST7789_HEIGHT;
-    ST7789_SetWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
+    ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
     DC_1; CS_0;
     for (uint32_t i = 0; i < total; i++) {
         BSP_SPI_tx_byte((uint8_t)(color >> 8));
@@ -172,8 +172,8 @@ void ST7789_Clear(uint16_t color)
     CS_1;
 }
 
-/* 高效区域填充: 调用者需先 SetWindows, 本函数只写数据 */
-void ST7789_ClearRaw(uint16_t color, uint16_t w, uint16_t h)
+/* 高效区域填充: 调用者需先 setWindows, 本函数只写数据 */
+void ST7789_clearRaw(uint16_t color, uint16_t w, uint16_t h)
 {
     uint32_t total = (uint32_t)w * h;
     uint8_t hi = (uint8_t)(color >> 8);
@@ -187,7 +187,7 @@ void ST7789_ClearRaw(uint16_t color, uint16_t w, uint16_t h)
 }
 
 /* DMA 版区域填充 */
-void ST7789_ClearRaw_DMA(uint16_t color, uint16_t w, uint16_t h)
+void ST7789_clearRawDMA(uint16_t color, uint16_t w, uint16_t h)
 {
     /* 填充一行 DMA buffer, 逐行发送 */
     uint16_t pixels_per_dma = (w < DMA_ROW_MAX) ? w : DMA_ROW_MAX;
@@ -200,8 +200,8 @@ void ST7789_ClearRaw_DMA(uint16_t color, uint16_t w, uint16_t h)
     CS_1;
 }
 
-/* 快速字符串绘制: 1 次 SetWindows, DMA 逐行发送, 零 Paint 开销 */
-void ST7789_DrawStringFast(uint16_t x, uint16_t y, const char *str,
+/* 快速字符串绘制: 1 次 setWindows, DMA 逐行发送, 零 Paint 开销 */
+void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
                            const uint8_t *font_table, uint16_t font_w, uint16_t font_h,
                            uint16_t fg, uint16_t bg)
 {
@@ -211,7 +211,7 @@ void ST7789_DrawStringFast(uint16_t x, uint16_t y, const char *str,
     uint16_t bpc = font_w / 8 + (font_w % 8 ? 1 : 0);  /* bytes per char row */
     uint16_t char_bytes = font_h * bpc;                  /* bytes per char  */
 
-    ST7789_SetWindows(x, y, x + w - 1, y + h - 1);
+    ST7789_setWindows(x, y, x + w - 1, y + h - 1);
     DC_1; CS_0;
 
     for (uint16_t row = 0; row < h; row++) {
@@ -231,13 +231,13 @@ void ST7789_DrawStringFast(uint16_t x, uint16_t y, const char *str,
     CS_1;
 }
 
-void ST7789_DrawPoint(uint16_t x, uint16_t y, uint16_t color)
+void ST7789_drawPoint(uint16_t x, uint16_t y, uint16_t color)
 {
-    ST7789_SetWindows(x, y, x, y);
+    ST7789_setWindows(x, y, x, y);
     send_data16(color);
 }
 
-void ST7789_BackLight(uint8_t on)
+void ST7789_backLight(uint8_t on)
 {
     if (on) BLK_1; else BLK_0;
 }

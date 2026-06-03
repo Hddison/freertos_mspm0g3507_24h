@@ -87,9 +87,9 @@ static void draw_val(uint16_t x, uint16_t y, float val, uint8_t dec,
 {
     char buf[12];
     uint16_t w = (uint16_t)ftoa(buf, val, dec) * fw;
-    ST7789_SetWindows(x, y, x + w - 1, y + fh - 1);
-    ST7789_ClearRaw_DMA(BLACK, w, fh);
-    ST7789_DrawStringFast(x, y, buf, tbl, fw, fh, fg, BLACK);
+    ST7789_setWindows(x, y, x + w - 1, y + fh - 1);
+    ST7789_clearRawDMA(BLACK, w, fh);
+    ST7789_drawStringFast(x, y, buf, tbl, fw, fh, fg, BLACK);
 }
 
 /* ════════════ LCD 任务 ════════════ */
@@ -147,13 +147,13 @@ static void vLcdTask(void *pv)
                         jy61p_ok ? GREEN : RED);
 
     /* ── 电机初始化 ── */
-    Motor_Init();
+    Motor_init();
 
     JY61P_RawAngle raw;
     JY61P_Angle    ang;
 
     /* 电机停转, 手动测试编码器 */
-    Motor_Set(0, 0);
+    Motor_set(0, 0);
 
     for (;;) {
         if (jy61p_ok && JY61P_readAngle(&raw)) {
@@ -169,9 +169,9 @@ static void vLcdTask(void *pv)
             char tbuf[12];
             int pos = ftoa(tbuf, JY61P_getTotalYaw(), 1);
             uint16_t tw = (uint16_t)pos * 17;   /* Font24 宽度 17 */
-            ST7789_SetWindows(TOTAL_X, TOTAL_Y, TOTAL_X + tw - 1, TOTAL_Y + 23);
-            ST7789_ClearRaw_DMA(BLACK, tw, 24);
-            ST7789_DrawStringFast(TOTAL_X, TOTAL_Y, tbuf, Font24.table, 17, 24,
+            ST7789_setWindows(TOTAL_X, TOTAL_Y, TOTAL_X + tw - 1, TOTAL_Y + 23);
+            ST7789_clearRawDMA(BLACK, tw, 24);
+            ST7789_drawStringFast(TOTAL_X, TOTAL_Y, tbuf, Font24.table, 17, 24,
                                   YELLOW, BLACK);
         }
 
@@ -179,14 +179,14 @@ static void vLcdTask(void *pv)
         {
             char ebuf[32]; int p = 0;
             ebuf[p++]='M'; ebuf[p++]='1'; ebuf[p++]=':';
-            p += ftoa(ebuf + p, Motor_Enc1Dist(), 1); ebuf[p++]=' ';
+            p += ftoa(ebuf + p, Motor_enc1Dist(), 1); ebuf[p++]=' ';
             ebuf[p++]='M'; ebuf[p++]='2'; ebuf[p++]=':';
-            p += ftoa(ebuf + p, Motor_Enc2Dist(), 1);
+            p += ftoa(ebuf + p, Motor_enc2Dist(), 1);
             ebuf[p]='\0';
 
-            ST7789_SetWindows(24, 258, 24 + 119, 265);
-            ST7789_ClearRaw_DMA(BLACK, 120, 8);
-            ST7789_DrawStringFast(24, 258, ebuf, Font8.table, 5, 8, CYAN, BLACK);
+            ST7789_setWindows(24, 258, 24 + 119, 265);
+            ST7789_clearRawDMA(BLACK, 120, 8);
+            ST7789_drawStringFast(24, 258, ebuf, Font8.table, 5, 8, CYAN, BLACK);
         }
 
         /* ── 灰度传感器: 12 方块 ── */
@@ -204,17 +204,17 @@ static void vLcdTask(void *pv)
                     uint16_t sx = GS_X + (uint16_t)i * GS_STEP;
                     /* bit(11-i): 左→右对应通道 1→12 */
                     uint16_t color = (gs & (1 << (11 - i))) ? WHITE : BLACK;
-                    ST7789_SetWindows(sx, GS_Y, sx + GS_W - 1, GS_Y + GS_H - 1);
-                    ST7789_ClearRaw(color, GS_W, GS_H);
+                    ST7789_setWindows(sx, GS_Y, sx + GS_W - 1, GS_Y + GS_H - 1);
+                    ST7789_clearRaw(color, GS_W, GS_H);
                 }
             }
         }
 
         /* ── 按键扫描 ── */
         {
-            uint8_t evt = Button_Scan();
+            uint8_t evt = BSP_Button_Scan();
             if (evt == BTN_EVT_SHORT) {
-                Motor_EncReset();       /* 短按: 编码器清零 */
+                Motor_encReset();       /* 短按: 编码器清零 */
             } else if (evt == BTN_EVT_LONG) {
                                        /* 长按: 暂不处理 */
             }
@@ -234,12 +234,12 @@ int main(void)
 
     BSP_delay_ms(1000);  /* 硬件稳定 */
 
-    ST7789_Init(ST7789_HORIZONTAL);
-    ST7789_BackLight(1);
+    ST7789_init(ST7789_HORIZONTAL);
+    ST7789_backLight(1);
     BSP_UART_tx_str("\r\n=== LCD Initialized ===\r\n");
     Paint_NewImage(ST7789_WIDTH, ST7789_HEIGHT, ROTATE_0, BLACK);
-    Paint_SetClearFuntion(ST7789_Clear);
-    Paint_SetDisplayFuntion(ST7789_DrawPoint);
+    Paint_SetClearFuntion(ST7789_clear);
+    Paint_SetDisplayFuntion(ST7789_drawPoint);
     BSP_UART_tx_str("\r\n=== Paint Initialized ===\r\n");
     xTaskCreate(vLedTask,  "LED", 128,  NULL, tskIDLE_PRIORITY + 1, NULL);
     xTaskCreate(vLcdTask,  "LCD", 1024, NULL, tskIDLE_PRIORITY + 2, NULL);

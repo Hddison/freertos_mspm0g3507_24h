@@ -12,15 +12,15 @@
 
 #include <stdint.h>
 
-#define MOTOR_PWM_MAX   1000    /* PWM period-1, 0-1000 */
+#define MOTOR_PWM_MAX   999     /* PWM period-1, 0-999 */
 
 /* API */
-void Motor_Init(void);
-void Motor_Set(int16_t pwma, int16_t pwmb);   /* ±1000, 正=前进 */
-int32_t Motor_Enc1(void);                      /* 编码器 1 累计脉冲 */
-int32_t Motor_Enc2(void);                      /* 编码器 2 累计脉冲 */
-float Motor_Enc1Dist(void);                    /* 编码器 1 距离 (mm) */
-float Motor_Enc2Dist(void);                    /* 编码器 2 距离 (mm) */
-void Motor_EncReset(void);                     /* 编码器清零 */
+void   Motor_init(void);
+void   Motor_set(int16_t pwma, int16_t pwmb);   /* ±999, 正=前进 */
+int32_t Motor_enc1(void);                        /* 编码器 1 累计脉冲 */
+int32_t Motor_enc2(void);                        /* 编码器 2 累计脉冲 */
+float Motor_enc1Dist(void);                      /* 编码器 1 距离 (mm) */
+float Motor_enc2Dist(void);                      /* 编码器 2 距离 (mm) */
+void   Motor_encReset(void);                     /* 编码器清零 */
 
 #endif

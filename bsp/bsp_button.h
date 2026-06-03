@@ -22,9 +22,9 @@
 #define BTN_EVT_LONG   2
 
 /* 每次调用扫描所有按键, 返回事件类型 (0/BTN_EVT_SHORT/BTN_EVT_LONG) */
-uint8_t Button_Scan(void);
+uint8_t BSP_Button_Scan(void);
 
 /* 获取上次事件对应的按键 ID (事件有效期内调用) */
-uint8_t Button_ID(void);
+uint8_t BSP_Button_ID(void);
 
 #endif

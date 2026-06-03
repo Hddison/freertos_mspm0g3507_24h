@@ -18,7 +18,7 @@ static volatile int32_t g_enc2;
 
 /* ══════ 初始化 ══════ */
 
-void Motor_Init(void)
+void Motor_init(void)
 {
     /* 方向引脚: 初始 LOW, 输出 */
     DL_GPIO_clearPins(GPIO_MOTOR_PORT,
@@ -60,7 +60,7 @@ void Motor_Init(void)
 
 /* ══════ 设置 PWM (带符号: 正=前进, 负=后退) ══════ */
 
-void Motor_Set(int16_t pwma, int16_t pwmb)
+void Motor_set(int16_t pwma, int16_t pwmb)
 {
     if (pwma >= 0) {
         DL_GPIO_clearPins(GPIO_MOTOR_PORT, GPIO_MOTOR_AIN1_PIN);
@@ -87,15 +87,15 @@ void Motor_Set(int16_t pwma, int16_t pwmb)
 
 /* ══════ 读取编码器累计脉冲 ══════ */
 
-int32_t Motor_Enc1(void) { return g_enc1; }
-int32_t Motor_Enc2(void) { return g_enc2; }
+int32_t Motor_enc1(void) { return g_enc1; }
+int32_t Motor_enc2(void) { return g_enc2; }
 
 /* 距离换算: 500PPR × 减速比 1:20 × 轮径 48mm × 2x 上升沿解码 */
 #define DIST_PER_COUNT  (3.14159265f * 48.0f / (500.0f * 20.0f * 2.0f))
 
-float Motor_Enc1Dist(void) { return (float)g_enc1 * DIST_PER_COUNT; }
-float Motor_Enc2Dist(void) { return (float)g_enc2 * DIST_PER_COUNT; }
-void  Motor_EncReset(void) { g_enc1 = 0; g_enc2 = 0; }
+float Motor_enc1Dist(void) { return (float)g_enc1 * DIST_PER_COUNT; }
+float Motor_enc2Dist(void) { return (float)g_enc2 * DIST_PER_COUNT; }
+void  Motor_encReset(void) { g_enc1 = 0; g_enc2 = 0; }
 
 /* ══════ GPIO 编码器 ISR (GROUP1: PA26-31 双边沿) ══════ */
 

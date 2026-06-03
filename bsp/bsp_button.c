@@ -30,9 +30,9 @@ static uint16_t btn_debounce[BTN_COUNT]; /* 去抖计数 ms */
 static uint8_t  g_evt_id;               /* 上次事件按键 ID */
 static uint8_t  g_evt;                  /* 上次事件类型 */
 
-uint8_t Button_ID(void) { return g_evt_id; }
+uint8_t BSP_Button_ID(void) { return g_evt_id; }
 
-uint8_t Button_Scan(void)
+uint8_t BSP_Button_Scan(void)
 {
     g_evt = BTN_EVT_NONE;
 

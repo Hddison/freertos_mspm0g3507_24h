@@ -183,10 +183,7 @@ void TaskLcd_create(QueueHandle_t sensorQueue)
 
 void TaskLcd_suspend(void)
 {
-    if (g_lcdHandle) {
-        vTaskSuspend(g_lcdHandle);
-        vTaskDelay(pdMS_TO_TICKS(5));  /* 等 DMA 完成 */
-    }
+    if (g_lcdHandle) vTaskSuspend(g_lcdHandle);
 }
 
 void TaskLcd_resume(void)

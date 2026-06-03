@@ -10,6 +10,7 @@
 #include "ti_msp_dl_config.h"
 #include <ti/driverlib/dl_gpio.h>
 
+#include "interrupt_priorities.h"
 #include "bsp_uart.h"
 #include "bsp_system.h"
 #include "hw_st7789.h"
@@ -229,6 +230,17 @@ int main(void)
 {
     SYSCFG_DL_init();
     BSP_UART_tx_str("\r\n=== SYSCFG_DL_init ===\r\n");
+
+    /* ── 中断优先级配置 (Cortex-M0+: 2-bit, 4 级) ── */
+    NVIC_SetPriority(DMA_INT_IRQn,      PRIO_DMA_CH);        /* DMA 通道 0-3      */
+    NVIC_SetPriority(SPI1_INT_IRQn,     PRIO_SPI_LCD);       /* SPI1 LCD           */
+    NVIC_SetPriority(I2C0_INT_IRQn,     PRIO_I2C_IMU);       /* I2C0 JY61P         */
+    NVIC_SetPriority(I2C1_INT_IRQn,     PRIO_I2C_GRAY);      /* I2C1 NCHD12        */
+    NVIC_SetPriority(GPIOA_INT_IRQn,    PRIO_ENCODER_GPIO);  /* 编码器 GPIO 中断   */
+    NVIC_SetPriority(TIMG7_INT_IRQn,    PRIO_TIMER_CAP);     /* 捕获定时器 7       */
+    NVIC_SetPriority(TIMG8_INT_IRQn,    PRIO_TIMER_CAP);     /* 捕获定时器 8       */
+    NVIC_SetPriority(TIMA1_INT_IRQn,    PRIO_UNUSED);        /* PWM (未使用 ISR)   */
+
     /* 禁用 UART 中断, 防止上电噪声触发 Default_Handler */
     DL_UART_Main_disableInterrupt(UART_0_INST, DL_UART_MAIN_INTERRUPT_RX);
 

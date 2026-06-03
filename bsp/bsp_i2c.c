@@ -63,7 +63,8 @@ static void i2c_recover_ex(I2C_Regs *i2c,
                            uint32_t scl_iomux, uint32_t scl_func,
                            uint32_t sda_iomux, uint32_t sda_func,
                            GPIO_Regs *scl_port, uint32_t scl_pin,
-                           GPIO_Regs *sda_port, uint32_t sda_pin)
+                           GPIO_Regs *sda_port, uint32_t sda_pin,
+                           void (*reinit_fn)(void))
 {
     volatile uint32_t dly;
 
@@ -95,7 +96,7 @@ static void i2c_recover_ex(I2C_Regs *i2c,
     DL_GPIO_enableHiZ(sda_iomux);
     DL_GPIO_enableHiZ(scl_iomux);
     DL_I2C_enablePower(i2c);
-    SYSCFG_DL_I2C_NCHD12_init();
+    reinit_fn();
     DL_I2C_enableDMAEvent(i2c, DL_I2C_EVENT_ROUTE_2,
                           DL_I2C_DMA_INTERRUPT_CONTROLLER_RXFIFO_TRIGGER);
 }
@@ -233,7 +234,8 @@ fail:
             GPIO_I2C_NCHD12_IOMUX_SCL, GPIO_I2C_NCHD12_IOMUX_SCL_FUNC,
             GPIO_I2C_NCHD12_IOMUX_SDA, GPIO_I2C_NCHD12_IOMUX_SDA_FUNC,
             GPIO_I2C_NCHD12_SCL_PORT, GPIO_I2C_NCHD12_SCL_PIN,
-            GPIO_I2C_NCHD12_SDA_PORT, GPIO_I2C_NCHD12_SDA_PIN);
+            GPIO_I2C_NCHD12_SDA_PORT, GPIO_I2C_NCHD12_SDA_PIN,
+            SYSCFG_DL_I2C_NCHD12_init);
     } else {
         BSP_I2C_recover();
     }

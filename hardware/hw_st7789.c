@@ -208,6 +208,10 @@ void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
     size_t len = strlen(str);
     uint16_t w = (uint16_t)len * font_w;
     uint16_t h = font_h;
+
+    /* 缓冲区溢出保护: w 不能超过 DMA_ROW_MAX */
+    if (w > DMA_ROW_MAX) return;
+
     uint16_t bpc = font_w / 8 + (font_w % 8 ? 1 : 0);  /* bytes per char row */
     uint16_t char_bytes = font_h * bpc;                  /* bytes per char  */
 

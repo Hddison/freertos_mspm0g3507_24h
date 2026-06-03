@@ -1,0 +1,57 @@
+# ── 发布目录 ──
+release/
+
+# ── CMake 构建输出 ──
+build/
+
+# ── 编译产物 ──
+*.o
+*.d
+*.out
+*.lib
+*.a
+*.map
+*.mk
+*.opt
+*.dot
+*.xml
+*.elf
+
+# ── CCS Debug 目录中的构建产物 ──
+*/Debug/*.o
+*/Debug/*.d
+*/Debug/*.out
+*/Debug/*.lib
+*/Debug/*.a
+*/Debug/*.map
+*/Debug/*.mk
+*/Debug/*.opt
+*/Debug/*.dot
+*/Debug/*.xml
+*/Debug/makefile
+*/Debug/.clangd/
+*/Debug/dpl/
+*/Debug/freertos/
+*/Debug/posix/
+*/Debug/ticlang/
+
+# ── 编辑器 / IDE 临时文件 ──
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Clangd 索引缓存 ──
+.clangd/
+.cache/
+
+# ── CCS / Eclipse 工作区文件 ──
+.settings/
+.ccsproject
+.cproject
+.project
+
+# ── CCS 自动生成的 HTML ──
+*/README.html

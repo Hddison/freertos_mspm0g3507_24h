@@ -1,0 +1,165 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake 配置 (Configure)",
+            "dependsOn": ["CMake 配置 (执行)", "Clangd 刷新索引"],
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "detail": "运行 CMake 配置 (TiClang) 并刷新 clangd"
+        },
+        {
+            "label": "CMake 配置 (执行)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
+                "-DCMAKE_TOOLCHAIN_FILE=cmake/ti_ticlang.cmake",
+                "-GNinja",
+                "-Bbuild"
+            ],
+            "options": { "shell": { "executable": "cmd.exe", "args": ["/C"] } },
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "内部任务"
+        },
+        {
+            "label": "CMake 编译 (Build)",
+            "dependsOn": ["CMake 编译 (执行)", "Clangd 刷新索引"],
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "编译工程并刷新 clangd (Ctrl+Shift+B)"
+        },
+        {
+            "label": "CMake 编译 (执行)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build"
+            ],
+            "options": { "shell": { "executable": "cmd.exe", "args": ["/C"] } },
+            "group": "none",
+            "problemMatcher": [
+                {
+                    "owner": "cpp",
+                    "fileLocation": ["relative", "${workspaceFolder}"],
+                    "pattern": {
+                        "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                }
+            ],
+            "detail": "内部任务"
+        },
+        {
+            "label": "Clangd 刷新索引",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-Command",
+                "(Get-Item ${workspaceFolder}/build/compile_commands.json).LastWriteTime = Get-Date"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "触发 clangd 重新加载编译数据库"
+        },
+        {
+            "label": "CMake 清理 (Clean)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "clean"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "清理构建产物"
+        },
+        {
+            "label": "probe-rs 烧录 (Flash)",
+            "dependsOn": ["CMake 编译 (Build)", "probe-rs 下载执行", "probe-rs 复位"],
+            "dependsOrder": "sequence",
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "编译 → 烧录 → 复位开发板"
+        },
+        {
+            "label": "probe-rs 下载执行",
+            "type": "shell",
+            "command": "probe-rs",
+            "args": [
+                "download",
+                "--chip", "MSPM0G3507",
+                "${workspaceFolder}/build/posix_demo/posix_demo.out"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "内部任务"
+        },
+        {
+            "label": "probe-rs 烧录 (仅下载)",
+            "type": "shell",
+            "command": "probe-rs",
+            "args": [
+                "download",
+                "--chip", "MSPM0G3507",
+                "${workspaceFolder}/build/posix_demo/posix_demo.out"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "仅烧录固件，不编译不复位"
+        },
+        {
+            "label": "probe-rs 复位",
+            "type": "shell",
+            "command": "probe-rs",
+            "args": [
+                "reset",
+                "--chip", "MSPM0G3507"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "复位 MSPM0G3507 开发板"
+        },
+        {
+            "label": "SysConfig GUI",
+            "type": "shell",
+            "command": "C:/ti/sysconfig_1.27.0/sysconfig_gui.bat",
+            "args": [
+                "--compiler", "ticlang",
+                "--product", "C:/ti/mspm0_sdk_2_10_00_04/.metadata/product.json",
+                "posix_demo/posix_demo.syscfg"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "打开 SysConfig 图形化配置界面 (TiClang)"
+        },
+        {
+            "label": "SysConfig 生成代码",
+            "type": "shell",
+            "command": "C:/ti/sysconfig_1.27.0/sysconfig_cli.bat",
+            "args": [
+                "--compiler", "ticlang",
+                "--product", "C:/ti/mspm0_sdk_2_10_00_04/.metadata/product.json",
+                "--output", "posix_demo/syscfg",
+                "posix_demo/posix_demo.syscfg"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "从 .syscfg 重新生成 SysConfig 代码到 syscfg/（改完引脚后运行）"
+        }
+    ]
+}

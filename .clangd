@@ -1,0 +1,26 @@
+# 排除参考工程 (避免 STM32 HAL 头文件缺失报错)
+If:
+   PathMatch: .*
+   PathExclude: D:\\4codespace\\STM32_LCD\\|D:\\4codespace\\tft\\
+
+CompileFlags:
+   Add:
+     - "-march=thumbv6m"
+     - "-mcpu=cortex-m0plus"
+     - "-mfloat-abi=soft"
+     - "-mthumb"
+     - "-D__MSPM0G3507__"
+     - "-D__ti_version__"
+     - "-xc"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp/bsp"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp/posix_demo"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp/posix_demo/syscfg"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp/posix_demo/Debug"
+     - "-ID:/4codespace/24H/freertos_mspm0g3507_bsp/freertos_builds_LP_MSPM0G3507_release_ticlang"
+     - "-IC:/ti/mspm0_sdk_2_10_00_04/kernel/freertos/Source/include"
+     - "-IC:/ti/mspm0_sdk_2_10_00_04/kernel/freertos/Source/portable/TI_ARM_CLANG/ARM_CM0"
+     - "-IC:/ti/mspm0_sdk_2_10_00_04/source/third_party/CMSIS/Core/Include"
+     - "-IC:/ti/mspm0_sdk_2_10_00_04/source/ti/posix/ticlang"
+     - "-IC:/ti/mspm0_sdk_2_10_00_04/source"
+     - "-ID:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS/include"

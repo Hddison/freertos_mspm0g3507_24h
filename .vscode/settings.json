@@ -1,0 +1,13 @@
+{
+    "clangd.arguments": [
+        "--query-driver=D:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS/bin/tiarmclang.exe",
+        "--compile-commands-dir=build"
+    ],
+    "cmake.configureArgs": [
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DCMAKE_TOOLCHAIN_FILE=cmake/ti_ticlang.cmake",
+        "-GNinja"
+    ],
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.sourceDirectory": "${workspaceFolder}"
+}

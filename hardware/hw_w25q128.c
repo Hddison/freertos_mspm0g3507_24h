@@ -40,9 +40,10 @@ static uint8_t _spi(uint8_t tx)
     return BSP_SPI_txrx_byte(tx);
 }
 
-/* ── 内部: DMA TX (CH0, 与 LCD 共用) ── */
+/* ── 内部: DMA TX (CH1, 与 LCD 共用) ── */
 static void _dmaTx(const uint8_t *buf, uint16_t len)
 {
+    DL_DMA_disableChannel(DMA, W25Q_DMA_TX_CH);   /* 确保 LCD 没占用 */
     DL_DMA_setSrcAddr(DMA, W25Q_DMA_TX_CH, (uint32_t)buf);
     DL_DMA_setDestAddr(DMA, W25Q_DMA_TX_CH, (uint32_t)&SPI_LCD_INST->TXDATA);
     DL_DMA_setTransferSize(DMA, W25Q_DMA_TX_CH, len);
@@ -51,9 +52,10 @@ static void _dmaTx(const uint8_t *buf, uint16_t len)
     DL_DMA_disableChannel(DMA, W25Q_DMA_TX_CH);
 }
 
-/* ── 内部: DMA RX (CH3, 从 SPI1 接收) ── */
+/* ── 内部: DMA RX (CH0, 从 SPI1 接收) ── */
 static void _dmaRx(uint8_t *buf, uint16_t len)
 {
+    DL_DMA_disableChannel(DMA, W25Q_DMA_RX_CH);   /* 确保干净状态 */
     DL_DMA_setSrcAddr(DMA, W25Q_DMA_RX_CH, (uint32_t)&SPI_LCD_INST->RXDATA);
     DL_DMA_setDestAddr(DMA, W25Q_DMA_RX_CH, (uint32_t)buf);
     DL_DMA_setTransferSize(DMA, W25Q_DMA_RX_CH, len);

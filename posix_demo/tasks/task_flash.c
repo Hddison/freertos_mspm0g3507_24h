@@ -72,7 +72,7 @@ static void prvFlashTask(void *pvParameters)
 void TaskFlash_create(void)
 {
     BaseType_t ret = xTaskCreate(
-        prvFlashTask, "Flash", 768, NULL,
+        prvFlashTask, "Flash", 256, NULL,
         tskIDLE_PRIORITY + 5, NULL);
     if (ret != pdPASS) {
         BSP_UART_tx_str("[Flash] Failed to create task!\r\n");

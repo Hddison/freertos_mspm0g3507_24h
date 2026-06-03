@@ -32,17 +32,13 @@ set(FREERTOS_DPL_SRCS
     ${SDK_DIR}/kernel/freertos/dpl/TaskP_freertos.c
 )
 
-# ── 启动文件 ──
-set(STARTUP_SRC
-    ${CMAKE_CURRENT_SOURCE_DIR}/freertos/startup/startup_mspm0g350x_ticlang.c
-)
+# ── 启动文件 (已移至 posix_demo/freertos/ticlang/, 由可执行文件编译) ──
 
 # ── 构建静态库 ──
 add_library(freertos_builds STATIC
     ${FREERTOS_KERNEL_SRCS}
     ${FREERTOS_PORT_SRCS}
     ${FREERTOS_DPL_SRCS}
-    ${STARTUP_SRC}
 )
 
 target_include_directories(freertos_builds PUBLIC

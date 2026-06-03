@@ -4,6 +4,11 @@ set(TOOLCHAIN_ROOT "D:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS")
 # ── 应用源文件 ──
 add_executable(posix_demo
     main.c
+    app/app_ui.c
+    tasks/task_led.c
+    tasks/task_sensor.c
+    tasks/task_lcd.c
+    tasks/task_motor.c
     syscfg/ti_msp_dl_config.c
     freertos/ticlang/startup_mspm0g350x_ticlang.c
 )
@@ -11,6 +16,8 @@ add_executable(posix_demo
 # ── 包含路径 ──
 target_include_directories(posix_demo PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/tasks
     ${CMAKE_CURRENT_SOURCE_DIR}/syscfg
     ${CMAKE_SOURCE_DIR}
     ${SDK_DIR}/source/third_party/CMSIS/Core/Include

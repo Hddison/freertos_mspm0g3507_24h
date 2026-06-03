@@ -13,16 +13,13 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
-#include <stdio.h>
 
 #include "ti_msp_dl_config.h"
 #include <ti/driverlib/dl_gpio.h>
-#include <ti/driverlib/dl_spi.h>
 
 #include "interrupt_priorities.h"
 #include "bsp_uart.h"
 #include "bsp_system.h"
-#include "bsp_spi.h"
 
 #include "tasks/task_led.h"
 #include "tasks/task_sensor.h"
@@ -55,34 +52,6 @@ int main(void)
     DL_UART_Main_disableInterrupt(UART_0_INST, DL_UART_MAIN_INTERRUPT_RX);
 
     BSP_delay_ms(1000);  /* 硬件稳定 */
-
-    /* ── 终极诊断: 调度器启动前读 Flash ID ── */
-    {
-        uint16_t id;
-        uint8_t  mfr, dev;
-
-        /* 清 RX FIFO */
-        while (!DL_SPI_isRXFIFOEmpty(SPI_LCD_INST)) {
-            (void)DL_SPI_receiveData8(SPI_LCD_INST);
-        }
-
-        /* CS LOW → 发 0x90 → 读 ID → CS HIGH */
-        DL_GPIO_clearPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
-        BSP_SPI_txrx_byte(0x90);
-        BSP_SPI_txrx_byte(0x00);
-        BSP_SPI_txrx_byte(0x00);
-        BSP_SPI_txrx_byte(0x00);
-        mfr = BSP_SPI_txrx_byte(0xFF);
-        dev = BSP_SPI_txrx_byte(0xFF);
-        DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
-
-        id = ((uint16_t)mfr << 8) | dev;
-
-        char boot_msg[48];
-        snprintf(boot_msg, sizeof(boot_msg),
-            "[Boot] Flash ID: 0x%04X (MFR=%02X DEV=%02X)\r\n", id, mfr, dev);
-        BSP_UART_tx_str(boot_msg);
-    }
 
     /* ── 3. 创建任务 (按优先级从低到高) ── */
     TaskLed_create();

@@ -233,11 +233,11 @@ PWM1.ccp1PinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric10";
 
 SPI1.$name                              = "SPI_LCD";
 SPI1.frameFormat                        = "MOTO3";
-SPI1.targetBitRate                      = 32000000;
 SPI1.enabledDMAEvent2Triggers           = "DL_SPI_DMA_INTERRUPT_TX";
 SPI1.enabledDMAEvent1Triggers           = "DL_SPI_DMA_INTERRUPT_RX";
 SPI1.txFifoThreshold                    = "DL_SPI_TX_FIFO_LEVEL_EMPTY";
 SPI1.rxFifoThreshold                    = "DL_SPI_RX_FIFO_LEVEL_FULL";
+SPI1.targetBitRate                      = 10000000;
 SPI1.sclkPinConfig.direction            = scripting.forceWrite("OUTPUT");
 SPI1.sclkPinConfig.onlyInternalResistor = scripting.forceWrite(false);
 SPI1.sclkPinConfig.passedPeripheralType = scripting.forceWrite("Digital");

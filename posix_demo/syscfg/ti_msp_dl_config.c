@@ -638,9 +638,9 @@ SYSCONFIG_WEAK void SYSCFG_DL_SPI_LCD_init(void) {
     /*
      * Set the bit rate clock divider to generate the serial output clock
      *     outputBitRate = (spiInputClock) / ((1 + SCR) * 2)
-     *     40000000 = (80000000)/((1 + 0) * 2)
+     *     10000000 = (80000000)/((1 + 3) * 2)
      */
-    DL_SPI_setBitRateSerialClockDivider(SPI_LCD_INST, 0);
+    DL_SPI_setBitRateSerialClockDivider(SPI_LCD_INST, 3);
 
     /* Enable SPI TX interrupt as a trigger for DMA */
     DL_SPI_enableDMATransmitEvent(SPI_LCD_INST);

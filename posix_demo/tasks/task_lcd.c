@@ -190,10 +190,6 @@ void TaskLcd_resume(void)
 {
     ST7789_init(ST7789_HORIZONTAL);
     ST7789_backLight(1);
-    // Paint_NewImage(ST7789_WIDTH, ST7789_HEIGHT, ROTATE_0, BLACK);
-    // Paint_SetClearFuntion(ST7789_clear);
-    // Paint_SetDisplayFuntion(ST7789_drawPoint);
-
-    BSP_UART_tx_str("[LCD] Hardware ready\r\n");
+    BSP_UART_tx_str("[LCD] Resumed\r\n");
     if (g_lcdHandle) vTaskResume(g_lcdHandle);
 }

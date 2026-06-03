@@ -14,17 +14,17 @@
 #include <task.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 #include "app/app_config.h"
 #include "bsp_uart.h"
 #include "hw_motor.h"
 
-/* ── 当前偏航角 (传感器任务每 20Hz 更新) ── */
+/* ── 当前偏航角 (传感器任务每 20Hz 更新, 已解卷绕, 可累计多圈) ── */
 extern volatile float g_current_yaw;
 
-/* ── P 控制器参数 ── */
-#define YAW_KP          8.0f      /* 比例增益 */
+/* ── P 控制器参数 (可调) ── */
+#define YAW_KP          4.0f      /* 比例增益 */
+#define YAW_PWM_MAX     400       /* PWM 最大幅值 (0-999, 越小越慢) */
 #define YAW_DEAD_ZONE   2.0f      /* 死区 (°) */
 #define YAW_DONE_CNT    5         /* 连续稳定次数 → 完成 */
 
@@ -32,14 +32,6 @@ extern volatile float g_current_yaw;
 typedef enum { ST_IDLE, ST_ROTATING, ST_DONE } motor_state_t;
 
 static TaskHandle_t g_motorHandle;
-
-/* 角度差归一化到 [-180, 180] */
-static float _normAngle(float err)
-{
-    while (err >  180.0f) err -= 360.0f;
-    while (err < -180.0f) err += 360.0f;
-    return err;
-}
 
 /* ══════ 任务函数 ══════ */
 static void prvMotorTask(void *pvParameters)
@@ -70,11 +62,12 @@ static void prvMotorTask(void *pvParameters)
 
         case ST_ROTATING: {
             float cur   = g_current_yaw;
-            float error = _normAngle(target - cur);
+            float error = target - cur;          /* 不归一化, 支持多圈恢复 */
             float pwm   = YAW_KP * error;
+            float absErr = (error < 0) ? -error : error;
 
             /* 死区判断 */
-            if (fabsf(error) < YAW_DEAD_ZONE) {
+            if (absErr < YAW_DEAD_ZONE) {
                 doneCnt++;
                 if (doneCnt >= YAW_DONE_CNT) {
                     Motor_set(0, 0);
@@ -86,10 +79,10 @@ static void prvMotorTask(void *pvParameters)
                 Motor_set(0, 0);
             } else {
                 doneCnt = 0;
-                /* 钳位 */
-                if (pwm >  MOTOR_PWM_MAX) pwm =  MOTOR_PWM_MAX;
-                if (pwm < -MOTOR_PWM_MAX) pwm = -MOTOR_PWM_MAX;
-                /* 差速旋转: +pwm=A, -pwm=B */
+                /* 钳位到可调阈值 */
+                if (pwm >  YAW_PWM_MAX) pwm =  YAW_PWM_MAX;
+                if (pwm < -YAW_PWM_MAX) pwm = -YAW_PWM_MAX;
+                /* 差速自转: +pwm=右轮, -pwm=左轮 */
                 Motor_set((int16_t)pwm, (int16_t)(-pwm));
             }
             break;

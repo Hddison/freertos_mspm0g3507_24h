@@ -42,6 +42,8 @@ extern "C" {
  *       阻塞等待队列数据, 收到后渲染更新
  */
 void TaskLcd_create(QueueHandle_t sensorQueue);
+void TaskLcd_suspend(void);
+void TaskLcd_resume(void);
 
 #ifdef __cplusplus
 }

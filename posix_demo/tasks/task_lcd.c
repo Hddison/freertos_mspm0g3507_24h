@@ -157,6 +157,9 @@ static void prvLcdTask(void *pvParameters)
     }
 }
 
+/* ── 用于 Flash 操作时暂停 LCD ── */
+static TaskHandle_t g_lcdHandle;
+
 /* ══════ 创建任务 ══════ */
 void TaskLcd_create(QueueHandle_t sensorQueue)
 {
@@ -169,11 +172,24 @@ void TaskLcd_create(QueueHandle_t sensorQueue)
         prvLcdTask,
         "LCD",
         TASK_LCD_STACK_SIZE,
-        (void *)sensorQueue,    /* 参数: 队列句柄 */
+        (void *)sensorQueue,
         TASK_LCD_PRIO,
-        NULL
+        &g_lcdHandle
     );
     if (ret != pdPASS) {
         BSP_UART_tx_str("[LCD] Failed to create task!\r\n");
     }
+}
+
+void TaskLcd_suspend(void)
+{
+    if (g_lcdHandle) {
+        vTaskSuspend(g_lcdHandle);
+        vTaskDelay(pdMS_TO_TICKS(5));  /* 等 DMA 完成 */
+    }
+}
+
+void TaskLcd_resume(void)
+{
+    if (g_lcdHandle) vTaskResume(g_lcdHandle);
 }

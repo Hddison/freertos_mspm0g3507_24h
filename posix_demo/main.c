@@ -25,20 +25,19 @@
 #include "tasks/task_sensor.h"
 #include "tasks/task_lcd.h"
 #include "tasks/task_motor.h"
-#include "tasks/task_flash.h"
+
+#include "app/app_flash.h"
+#include "tasks/task_setup.h"
 
 /* ════════════ main ════════════ */
 int main(void)
 {
-    /* ── 1. 硬件初始化 (SysConfig 生成) ── */
+    /* ── 1. 硬件初始化 ── */
     SYSCFG_DL_init();
-
-    /* 确保 W25Q128 CS (PB6) 拉高 — SysConfig 初始化为 LOW */
     DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
-
     BSP_UART_tx_str("\r\n=== System Boot ===\r\n");
 
-    /* ── 2. 中断优先级配置 ── */
+    /* ── 2. 中断优先级 ── */
     NVIC_SetPriority(DMA_INT_IRQn,      PRIO_DMA_CH);
     NVIC_SetPriority(SPI1_INT_IRQn,     PRIO_SPI_LCD);
     NVIC_SetPriority(I2C0_INT_IRQn,     PRIO_I2C_IMU);
@@ -47,30 +46,37 @@ int main(void)
     NVIC_SetPriority(TIMG7_INT_IRQn,    PRIO_TIMER_CAP);
     NVIC_SetPriority(TIMG8_INT_IRQn,    PRIO_TIMER_CAP);
     NVIC_SetPriority(TIMA1_INT_IRQn,    PRIO_UNUSED);
-
-    /* 禁用 UART 中断, 防止上电噪声触发 Default_Handler */
     DL_UART_Main_disableInterrupt(UART_0_INST, DL_UART_MAIN_INTERRUPT_RX);
+    BSP_delay_ms(1000);
 
-    BSP_delay_ms(1000);  /* 硬件稳定 */
+    /* ── 3. Flash + 按键配置 ── */
+    app_flash_config_t cfg;
 
-    /* ── 3. 创建任务 (按优先级从低到高) ── */
-    TaskLed_create();
-
-    QueueHandle_t sensorQueue = TaskSensor_create();
-    if (sensorQueue) {
-        TaskLcd_create(sensorQueue);
+    if (app_flash_init()) {
+        app_flash_loadConfig(&cfg);
+        BSP_UART_tx_str("[Boot] Config loaded\r\n");
     } else {
-        BSP_UART_tx_str("ERROR: Sensor task init failed!\r\n");
+        BSP_UART_tx_str("[Boot] First boot — setup wizard\r\n");
+        bool ok = false;
+        for (int i = 0; i < 3 && !ok; i++) {
+            ok = TaskSetup_runWizard(&cfg);
+        }
+        if (!ok) {
+            cfg.btn_save      = BTN_SAVE_YAW_DEFAULT;
+            cfg.btn_restore   = BTN_RESTORE_YAW_DEFAULT;
+            cfg.btn_enc_reset = BTN_ENC_RESET_DEFAULT;
+        }
     }
 
+    /* ── 4. 创建任务 ── */
+    TaskLed_create();
+    QueueHandle_t sq = TaskSensor_create(&cfg);
+    if (sq) TaskLcd_create(sq);
     TaskMotor_create();
-    TaskFlash_create();
 
-    /* ── 4. 启动 FreeRTOS 调度器 ── */
+    /* ── 5. 启动调度器 ── */
     BSP_UART_tx_str("=== Scheduler Start ===\r\n");
     vTaskStartScheduler();
-
-    /* 不应到达此处 */
     for (;;) {}
 }
 

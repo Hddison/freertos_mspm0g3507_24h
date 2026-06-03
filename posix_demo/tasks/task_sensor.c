@@ -12,21 +12,27 @@
  */
 
 #include "task_sensor.h"
+#include "task_lcd.h"
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <stdio.h>
 
 #include "app/app_config.h"
+#include "app/app_flash.h"
 #include "bsp_uart.h"
 #include "bsp_button.h"
 #include "hw_jy61p.h"
 #include "hw_nchd12.h"
 #include "hw_motor.h"
 
-/* ══════ 任务函数 ══════ */
+typedef struct { QueueHandle_t queue; const app_flash_config_t *cfg; } sensor_prm_t;
+
 static void prvSensorTask(void *pvParameters)
 {
-    QueueHandle_t queue = (QueueHandle_t)pvParameters;
+    sensor_prm_t *prm = (sensor_prm_t *)pvParameters;
+    QueueHandle_t queue = prm->queue;
+    const app_flash_config_t *cfg = prm->cfg;
     sensor_data_t data;
     JY61P_RawAngle raw;
     JY61P_Angle    ang;
@@ -84,11 +90,38 @@ static void prvSensorTask(void *pvParameters)
             NCHD12_read(&data.grayscale);
         }
 
-        /* ── 按键扫描 (短按清零编码器) ── */
+        /* ── 按键扫描 (可绑定) ── */
         {
             uint8_t evt = BSP_Button_Scan();
-            if (evt == BTN_EVT_SHORT) {
+            uint8_t id  = BSP_Button_ID();
+
+            if (evt == BTN_EVT_SHORT && id == cfg->btn_enc_reset) {
                 Motor_encReset();
+                BSP_UART_tx_str("[Btn] Encoder Reset\r\n");
+            } else if (evt == BTN_EVT_LONG) {
+                if (id == cfg->btn_save) {
+                    TaskLcd_suspend();
+                    if (app_flash_saveYaw(data.total_yaw)) {
+                        char m[48]; snprintf(m, sizeof(m),
+                            "[Btn] Yaw Saved: %.1f\r\n", (double)data.total_yaw);
+                        BSP_UART_tx_str(m);
+                    } else {
+                        BSP_UART_tx_str("[Btn] Save FAILED\r\n");
+                    }
+                    TaskLcd_resume();
+                } else if (id == cfg->btn_restore) {
+                    float sy;
+                    TaskLcd_suspend();
+                    if (app_flash_loadYaw(&sy)) {
+                        char m[64]; snprintf(m, sizeof(m),
+                            "[Btn] Yaw Restore: tgt=%.1f cur=%.1f\r\n",
+                            (double)sy, (double)data.total_yaw);
+                        BSP_UART_tx_str(m);
+                    } else {
+                        BSP_UART_tx_str("[Btn] No saved yaw\r\n");
+                    }
+                    TaskLcd_resume();
+                }
             }
         }
 
@@ -100,22 +133,18 @@ static void prvSensorTask(void *pvParameters)
 }
 
 /* ══════ 创建任务 ══════ */
-QueueHandle_t TaskSensor_create(void)
+QueueHandle_t TaskSensor_create(const app_flash_config_t *cfg)
 {
-    /* 创建数据队列 (深度 = SENSOR_QUEUE_LENGTH) */
     QueueHandle_t queue = xQueueCreate(SENSOR_QUEUE_LENGTH, sizeof(sensor_data_t));
-    if (!queue) {
-        BSP_UART_tx_str("[Sensor] Failed to create queue!\r\n");
-        return NULL;
-    }
+    if (!queue) { BSP_UART_tx_str("[Sensor] Queue fail\r\n"); return NULL; }
+
+    static sensor_prm_t prm;
+    prm.queue = queue;
+    prm.cfg   = cfg;
 
     BaseType_t ret = xTaskCreate(
-        prvSensorTask,
-        "Sensor",
-        TASK_SENSOR_STACK_SIZE,
-        (void *)queue,          /* 参数: 队列句柄 */
-        TASK_SENSOR_PRIO,
-        NULL
+        prvSensorTask, "Sensor", TASK_SENSOR_STACK_SIZE,
+        (void *)&prm, TASK_SENSOR_PRIO, NULL
     );
     if (ret != pdPASS) {
         BSP_UART_tx_str("[Sensor] Failed to create task!\r\n");

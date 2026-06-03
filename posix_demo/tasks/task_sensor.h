@@ -15,6 +15,7 @@
 #include <queue.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "app/app_flash.h"
 
 /* ── 传感器数据包 (通过队列传输) ── */
 typedef struct {
@@ -41,7 +42,7 @@ extern "C" {
  *
  * 返回: 队列句柄 (LCD 任务通过此队列接收数据), NULL 表示失败
  */
-QueueHandle_t TaskSensor_create(void);
+QueueHandle_t TaskSensor_create(const app_flash_config_t *cfg);
 
 #ifdef __cplusplus
 }

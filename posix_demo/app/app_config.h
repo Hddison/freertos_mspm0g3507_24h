@@ -29,7 +29,9 @@
 #define TASK_LCD_STACK_SIZE     1024
 #define TASK_MOTOR_STACK_SIZE   512
 
-/* ── 传感器数据队列深度 ── */
-#define SENSOR_QUEUE_LENGTH     4
+/* ── 传感器数据队列深度 (必须为 1: xQueueOverwrite 要求) ──
+ * mailbox 模式: LCD 任务始终消费最新数据, 旧帧自动覆盖
+ */
+#define SENSOR_QUEUE_LENGTH     1
 
 #endif /* APP_CONFIG_H */

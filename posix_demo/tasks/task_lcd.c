@@ -17,12 +17,9 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "ti_msp_dl_config.h"
-
 #include "app/app_config.h"
 #include "app/app_ui.h"
 #include "bsp_uart.h"
-#include "bsp_system.h"
 #include "hw_st7789.h"
 #include "gui_paint.h"
 
@@ -84,7 +81,6 @@ static void prvLcdTask(void *pvParameters)
 {
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     sensor_data_t data;
-    TickType_t    lastWake;
     bool          uiReady = false;
 
     BSP_UART_tx_str("[LCD] Started\r\n");

@@ -5,6 +5,7 @@
 
 #include "app_ui.h"
 
+#include "gui_paint.h"     /* BLACK, color constants */
 #include "hw_st7789.h"
 
 /* ══════ float → string (1-2 位小数) ══════ */

@@ -24,7 +24,7 @@ extern volatile float g_current_yaw;
 
 /* ── P 控制器参数 (可调) ── */
 #define YAW_KP          4.0f      /* 比例增益 */
-#define YAW_PWM_MAX     400       /* PWM 最大幅值 (0-999, 越小越慢) */
+#define YAW_PWM_MAX     200       /* PWM 最大幅值 (0-999, 越小越慢) */
 #define YAW_DEAD_ZONE   2.0f      /* 死区 (°) */
 #define YAW_DONE_CNT    5         /* 连续稳定次数 → 完成 */
 
@@ -49,8 +49,9 @@ static void prvMotorTask(void *pvParameters)
 
         case ST_IDLE:
             Motor_set(0, 0);
-            /* 等待通知 (目标 yaw 的 float 位模式) */
-            if (xTaskNotifyWait(0, 0xFFFFFFFF, &notifyVal, portMAX_DELAY) == pdTRUE) {
+            /* 等待通知, 100ms 超时避免 tickless idle 深度睡眠 */
+            if (xTaskNotifyWait(0, 0xFFFFFFFF, &notifyVal,
+                    pdMS_TO_TICKS(100)) == pdTRUE) {
                 memcpy(&target, &notifyVal, sizeof(float));
                 char m[48];
                 snprintf(m, sizeof(m), "[Motor] Yaw restore start: tgt=%.1f\r\n",

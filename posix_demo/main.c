@@ -25,12 +25,20 @@
 #include "tasks/task_sensor.h"
 #include "tasks/task_lcd.h"
 #include "tasks/task_motor.h"
+#include "tasks/task_flash.h"
 
 /* ════════════ main ════════════ */
 int main(void)
 {
     /* ── 1. 硬件初始化 (SysConfig 生成) ── */
     SYSCFG_DL_init();
+
+    /* 确保 W25Q128 CS (PB6) 拉高 — SysConfig 初始化为 LOW */
+    DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
+
+    /* 启用 SPI1 RX DMA 事件 (Flash 读取需要, TX 已由 SysConfig 启用) */
+    DL_SPI_enableDMAReceiveEvent(SPI_LCD_INST, DL_SPI_DMA_INTERRUPT_RX);
+
     BSP_UART_tx_str("\r\n=== System Boot ===\r\n");
 
     /* ── 2. 中断优先级配置 ── */
@@ -59,6 +67,7 @@ int main(void)
     }
 
     TaskMotor_create();
+    TaskFlash_create();
 
     /* ── 4. 启动 FreeRTOS 调度器 ── */
     BSP_UART_tx_str("=== Scheduler Start ===\r\n");

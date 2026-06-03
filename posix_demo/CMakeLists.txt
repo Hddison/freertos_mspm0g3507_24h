@@ -9,6 +9,7 @@ add_executable(posix_demo
     tasks/task_sensor.c
     tasks/task_lcd.c
     tasks/task_motor.c
+    tasks/task_flash.c
     syscfg/ti_msp_dl_config.c
     freertos/ticlang/startup_mspm0g350x_ticlang.c
 )

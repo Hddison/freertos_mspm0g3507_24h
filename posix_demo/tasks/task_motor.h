@@ -17,6 +17,9 @@ extern "C" {
 
 void TaskMotor_create(void);
 
+/* 启动偏航角恢复 (由传感器任务调用) */
+void TaskMotor_startYawRestore(float target_yaw);
+
 #ifdef __cplusplus
 }
 #endif

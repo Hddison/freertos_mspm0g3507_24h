@@ -13,6 +13,7 @@
 
 #include "task_sensor.h"
 #include "task_lcd.h"
+#include "task_motor.h"
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -27,6 +28,9 @@
 #include "hw_motor.h"
 
 typedef struct { QueueHandle_t queue; const app_flash_config_t *cfg; } sensor_prm_t;
+
+/* ── 全局偏航角 (电机任务 100Hz 读取) ── */
+volatile float g_current_yaw = 0.0f;
 
 static void prvSensorTask(void *pvParameters)
 {
@@ -78,6 +82,7 @@ static void prvSensorTask(void *pvParameters)
             data.pitch     = ang.pitch;
             data.yaw       = ang.yaw;
             data.total_yaw = JY61P_getTotalYaw();
+            g_current_yaw  = data.total_yaw;   /* 同步给电机任务 */
         }
 
         /* ── 编码器距离 ── */
@@ -117,6 +122,7 @@ static void prvSensorTask(void *pvParameters)
                             "[Btn] Yaw Restore: tgt=%.1f cur=%.1f\r\n",
                             (double)sy, (double)data.total_yaw);
                         BSP_UART_tx_str(m);
+                        TaskMotor_startYawRestore(sy);
                     } else {
                         BSP_UART_tx_str("[Btn] No saved yaw\r\n");
                     }

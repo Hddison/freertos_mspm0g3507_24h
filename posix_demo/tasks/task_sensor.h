@@ -30,6 +30,9 @@ typedef struct {
     uint16_t grayscale;       /* 12 路灰度 (bit0-11)                 */
 } sensor_data_t;
 
+/* ── 当前偏航角 (传感器任务 20Hz 更新, 电机任务读取) ── */
+extern volatile float g_current_yaw;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

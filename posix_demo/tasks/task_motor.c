@@ -18,13 +18,14 @@
 #include "app/app_config.h"
 #include "bsp_uart.h"
 #include "hw_motor.h"
+#include <ti/driverlib/dl_wwdt.h>
 
 /* ── 当前偏航角 (传感器任务每 20Hz 更新, 已解卷绕, 可累计多圈) ── */
 extern volatile float g_current_yaw;
 
 /* ── P 控制器参数 (可调) ── */
 #define YAW_KP          4.0f      /* 比例增益 */
-#define YAW_PWM_MAX     200       /* PWM 最大幅值 (0-999, 越小越慢) */
+#define YAW_PWM_MAX     400       /* PWM 最大幅值 (0-999, 越小越慢) */
 #define YAW_DEAD_ZONE   2.0f      /* 死区 (°) */
 #define YAW_DONE_CNT    5         /* 连续稳定次数 → 完成 */
 
@@ -41,7 +42,7 @@ static void prvMotorTask(void *pvParameters)
     uint32_t notifyVal;
     motor_state_t state = ST_IDLE;
     uint8_t  doneCnt = 0;
-
+    vTaskDelay(pdMS_TO_TICKS(200));
     BSP_UART_tx_str("[Motor] Ready\r\n");
 
     for (;;) {
@@ -95,6 +96,7 @@ static void prvMotorTask(void *pvParameters)
             break;
         }
 
+        DL_WWDT_restart(WWDT0);  /* 喂狗 */
         vTaskDelay(pdMS_TO_TICKS(TASK_MOTOR_PERIOD_MS));
     }
 }

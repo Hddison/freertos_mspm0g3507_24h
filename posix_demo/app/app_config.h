@@ -21,13 +21,13 @@
 #define TASK_LED_PRIO           (tskIDLE_PRIORITY + 1)
 #define TASK_SENSOR_PRIO        (tskIDLE_PRIORITY + 2)
 #define TASK_LCD_PRIO           (tskIDLE_PRIORITY + 3)
-#define TASK_MOTOR_PRIO         (tskIDLE_PRIORITY + 4)
+#define TASK_MOTOR_PRIO         (tskIDLE_PRIORITY + 2)
 
 /* ── 栈大小 (字, 4 bytes/word on Cortex-M0+) ── */
 #define TASK_LED_STACK_SIZE     128
 #define TASK_SENSOR_STACK_SIZE  512
 #define TASK_LCD_STACK_SIZE     1024
-#define TASK_MOTOR_STACK_SIZE   512
+#define TASK_MOTOR_STACK_SIZE   1024
 
 /* ── 传感器数据队列深度 (必须为 1: xQueueOverwrite 要求) ──
  * mailbox 模式: LCD 任务始终消费最新数据, 旧帧自动覆盖

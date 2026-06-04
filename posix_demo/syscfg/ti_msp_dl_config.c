@@ -238,13 +238,13 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		GPIO_ENC_PIN_E1B_PIN |
 		GPIO_ENC_PIN_E2A_PIN |
 		GPIO_ENC_PIN_E2B_PIN);
-    DL_GPIO_clearPins(GPIOB, GPIO_W25Q_W_CS_PIN |
-		GPIO_BEEP_PIN_BEEP_PIN);
-    DL_GPIO_setPins(GPIOB, GPIO_LEDS_USER_LED_1_PIN |
+    DL_GPIO_clearPins(GPIOB, GPIO_LEDS_USER_LED_1_PIN |
+		GPIO_BEEP_PIN_BEEP_PIN |
 		GPIO_LCD_LCD_RES_PIN |
-		GPIO_LCD_LCD_DC_PIN |
-		GPIO_LCD_LCD_CS_PIN |
 		GPIO_LCD_LCD_BLK_PIN);
+    DL_GPIO_setPins(GPIOB, GPIO_W25Q_W_CS_PIN |
+		GPIO_LCD_LCD_DC_PIN |
+		GPIO_LCD_LCD_CS_PIN);
     DL_GPIO_enableOutput(GPIOB, GPIO_LEDS_USER_LED_1_PIN |
 		GPIO_W25Q_W_CS_PIN |
 		GPIO_BEEP_PIN_BEEP_PIN |
@@ -637,10 +637,10 @@ SYSCONFIG_WEAK void SYSCFG_DL_DMA_SPI_LCD_RX_init(void)
 {
     DL_DMA_initChannel(DMA, DMA_SPI_LCD_RX_CHAN_ID , (DL_DMA_Config *) &gDMA_SPI_LCD_RXConfig);
 }
-static const DL_DMA_Config gDMA_CH1Config = {
+static const DL_DMA_Config gDMA_UART_RXConfig = {
     .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
     .extendedMode   = DL_DMA_NORMAL_MODE,
-    .destIncrement  = DL_DMA_ADDR_UNCHANGED,
+    .destIncrement  = DL_DMA_ADDR_INCREMENT,
     .srcIncrement   = DL_DMA_ADDR_UNCHANGED,
     .destWidth      = DL_DMA_WIDTH_BYTE,
     .srcWidth       = DL_DMA_WIDTH_BYTE,
@@ -648,24 +648,24 @@ static const DL_DMA_Config gDMA_CH1Config = {
     .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
 };
 
-SYSCONFIG_WEAK void SYSCFG_DL_DMA_CH1_init(void)
+SYSCONFIG_WEAK void SYSCFG_DL_DMA_UART_RX_init(void)
 {
-    DL_DMA_initChannel(DMA, DMA_CH1_CHAN_ID , (DL_DMA_Config *) &gDMA_CH1Config);
+    DL_DMA_initChannel(DMA, DMA_UART_RX_CHAN_ID , (DL_DMA_Config *) &gDMA_UART_RXConfig);
 }
-static const DL_DMA_Config gDMA_CH2Config = {
+static const DL_DMA_Config gDMA_UART_TXConfig = {
     .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
     .extendedMode   = DL_DMA_NORMAL_MODE,
     .destIncrement  = DL_DMA_ADDR_UNCHANGED,
-    .srcIncrement   = DL_DMA_ADDR_UNCHANGED,
+    .srcIncrement   = DL_DMA_ADDR_INCREMENT,
     .destWidth      = DL_DMA_WIDTH_BYTE,
     .srcWidth       = DL_DMA_WIDTH_BYTE,
     .trigger        = UART_0_INST_DMA_TRIGGER_1,
     .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
 };
 
-SYSCONFIG_WEAK void SYSCFG_DL_DMA_CH2_init(void)
+SYSCONFIG_WEAK void SYSCFG_DL_DMA_UART_TX_init(void)
 {
-    DL_DMA_initChannel(DMA, DMA_CH2_CHAN_ID , (DL_DMA_Config *) &gDMA_CH2Config);
+    DL_DMA_initChannel(DMA, DMA_UART_TX_CHAN_ID , (DL_DMA_Config *) &gDMA_UART_TXConfig);
 }
 SYSCONFIG_WEAK void SYSCFG_DL_DMA_init(void){
     SYSCFG_DL_DMA_I2C_TX_init();
@@ -673,8 +673,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_DMA_init(void){
     SYSCFG_DL_DMA_CH0_init();
     SYSCFG_DL_DMA_SPI_LCD_TX_init();
     SYSCFG_DL_DMA_SPI_LCD_RX_init();
-    SYSCFG_DL_DMA_CH1_init();
-    SYSCFG_DL_DMA_CH2_init();
+    SYSCFG_DL_DMA_UART_RX_init();
+    SYSCFG_DL_DMA_UART_TX_init();
 }
 
 

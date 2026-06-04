@@ -194,11 +194,11 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for DMA_SPI_LCD_RX */
 #define DMA_SPI_LCD_RX_CHAN_ID                                               (2)
 #define SPI_LCD_INST_DMA_TRIGGER_1                            (DMA_SPI1_RX_TRIG)
-/* Defines for DMA_CH1 */
-#define DMA_CH1_CHAN_ID                                                      (1)
+/* Defines for DMA_UART_RX */
+#define DMA_UART_RX_CHAN_ID                                                  (1)
 #define UART_0_INST_DMA_TRIGGER_0                            (DMA_UART0_RX_TRIG)
-/* Defines for DMA_CH2 */
-#define DMA_CH2_CHAN_ID                                                      (0)
+/* Defines for DMA_UART_TX */
+#define DMA_UART_TX_CHAN_ID                                                  (0)
 #define UART_0_INST_DMA_TRIGGER_1                            (DMA_UART0_TX_TRIG)
 
 

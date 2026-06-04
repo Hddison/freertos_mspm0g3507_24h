@@ -35,11 +35,11 @@ bool BSP_UART_rx_ready(void);
 /* ── DMA 收发 ── */
 
 /* DMA 发送: buf → UART TXDATA, 阻塞等待完成, 超时保护。
- * 通道: DMA_CH2_CHAN_ID (UART TX 触发) */
+ * 通道: DMA_UART_TX_CHAN_ID (UART TX 触发) */
 bool BSP_UART_tx_dma(const uint8_t *buf, uint16_t len);
 
 /* DMA 接收: UART RXDATA → buf, 阻塞等待 len 字节或超时。
- * 通道: DMA_CH1_CHAN_ID (UART RX 触发)
+ * 通道: DMA_UART_RX_CHAN_ID (UART RX 触发)
  * 返回实际接收字节数，超时返回已接收数 */
 uint16_t BSP_UART_rx_dma(uint8_t *buf, uint16_t len, uint32_t timeout_ms);
 

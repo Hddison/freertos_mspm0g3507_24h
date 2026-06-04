@@ -54,73 +54,48 @@ bool BSP_UART_rx_ready(void)
 /* ══════ DMA 收发 ══════ */
 
 /* ── BSP_UART_tx_dma ──
- * SysConfig CH2 (DMA_CH2_CHAN_ID=0) 配为 UART TX 触发,
- * 但 srcIncrement=UNCHANGED 需修正。 */
+ * DMA_UART_TX: src=增量(buf), dst=固定(TXDATA)
+ * SysConfig 已正确配置, 无需重新 initChannel。 */
 bool BSP_UART_tx_dma(const uint8_t *buf, uint16_t len)
 {
     if (!buf || !len) return false;
 
-    /* 修正 DMA 通道: src=增量(读buf), dst=固定(UART TXDATA) */
-    DL_DMA_Config cfg = {
-        .transferMode  = DL_DMA_SINGLE_TRANSFER_MODE,
-        .extendedMode  = DL_DMA_NORMAL_MODE,
-        .destIncrement = DL_DMA_ADDR_UNCHANGED,
-        .srcIncrement  = DL_DMA_ADDR_INCREMENT,
-        .destWidth     = DL_DMA_WIDTH_BYTE,
-        .srcWidth      = DL_DMA_WIDTH_BYTE,
-        .trigger       = UART_0_INST_DMA_TRIGGER_1,
-        .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
-    };
-    DL_DMA_initChannel(DMA, DMA_CH2_CHAN_ID, &cfg);
-
-    DL_DMA_setSrcAddr(DMA, DMA_CH2_CHAN_ID, (uint32_t)buf);
-    DL_DMA_setDestAddr(DMA, DMA_CH2_CHAN_ID, (uint32_t)&UART_0_INST->TXDATA);
-    DL_DMA_setTransferSize(DMA, DMA_CH2_CHAN_ID, len);
-    DL_DMA_enableChannel(DMA, DMA_CH2_CHAN_ID);
+    DL_DMA_setSrcAddr(DMA, DMA_UART_TX_CHAN_ID, (uint32_t)buf);
+    DL_DMA_setDestAddr(DMA, DMA_UART_TX_CHAN_ID, (uint32_t)&UART_0_INST->TXDATA);
+    DL_DMA_setTransferSize(DMA, DMA_UART_TX_CHAN_ID, len);
+    DL_DMA_enableChannel(DMA, DMA_UART_TX_CHAN_ID);
 
     uint32_t tout = 10000000;
-    while (DL_DMA_getTransferSize(DMA, DMA_CH2_CHAN_ID) != 0) {
+    while (DL_DMA_getTransferSize(DMA, DMA_UART_TX_CHAN_ID) != 0) {
         if (--tout == 0) {
-            DL_DMA_disableChannel(DMA, DMA_CH2_CHAN_ID);
+            DL_DMA_disableChannel(DMA, DMA_UART_TX_CHAN_ID);
             return false;
         }
     }
-    DL_DMA_disableChannel(DMA, DMA_CH2_CHAN_ID);
+    DL_DMA_disableChannel(DMA, DMA_UART_TX_CHAN_ID);
     return true;
 }
 
 /* ── BSP_UART_rx_dma ──
- * SysConfig CH1 (DMA_CH1_CHAN_ID=1) 配为 UART RX 触发。 */
+ * DMA_UART_RX: src=固定(RXDATA), dst=增量(buf)
+ * SysConfig 已正确配置, 无需重新 initChannel。 */
 uint16_t BSP_UART_rx_dma(uint8_t *buf, uint16_t len, uint32_t timeout_ms)
 {
     if (!buf || !len) return 0;
 
-    /* 修正 DMA 通道: src=固定(UART RXDATA), dst=增量(写buf) */
-    DL_DMA_Config cfg = {
-        .transferMode  = DL_DMA_SINGLE_TRANSFER_MODE,
-        .extendedMode  = DL_DMA_NORMAL_MODE,
-        .destIncrement = DL_DMA_ADDR_INCREMENT,
-        .srcIncrement  = DL_DMA_ADDR_UNCHANGED,
-        .destWidth     = DL_DMA_WIDTH_BYTE,
-        .srcWidth      = DL_DMA_WIDTH_BYTE,
-        .trigger       = UART_0_INST_DMA_TRIGGER_0,
-        .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
-    };
-    DL_DMA_initChannel(DMA, DMA_CH1_CHAN_ID, &cfg);
-
-    DL_DMA_setSrcAddr(DMA, DMA_CH1_CHAN_ID, (uint32_t)&UART_0_INST->RXDATA);
-    DL_DMA_setDestAddr(DMA, DMA_CH1_CHAN_ID, (uint32_t)buf);
-    DL_DMA_setTransferSize(DMA, DMA_CH1_CHAN_ID, len);
-    DL_DMA_enableChannel(DMA, DMA_CH1_CHAN_ID);
+    DL_DMA_setSrcAddr(DMA, DMA_UART_RX_CHAN_ID, (uint32_t)&UART_0_INST->RXDATA);
+    DL_DMA_setDestAddr(DMA, DMA_UART_RX_CHAN_ID, (uint32_t)buf);
+    DL_DMA_setTransferSize(DMA, DMA_UART_RX_CHAN_ID, len);
+    DL_DMA_enableChannel(DMA, DMA_UART_RX_CHAN_ID);
 
     /* 轮询等待 (同时检查超时) */
     uint32_t tout = timeout_ms * 8000;
     uint16_t rxfer;
     do {
-        rxfer = DL_DMA_getTransferSize(DMA, DMA_CH1_CHAN_ID);
+        rxfer = DL_DMA_getTransferSize(DMA, DMA_UART_RX_CHAN_ID);
     } while (rxfer != 0 && --tout);
 
-    DL_DMA_disableChannel(DMA, DMA_CH1_CHAN_ID);
+    DL_DMA_disableChannel(DMA, DMA_UART_RX_CHAN_ID);
 
     /* 已接收字节数 = 请求数 - 剩余数 */
     return len - rxfer;

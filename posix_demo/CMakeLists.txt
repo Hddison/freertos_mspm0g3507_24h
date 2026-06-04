@@ -3,13 +3,6 @@ set(TOOLCHAIN_ROOT "D:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS")
 
 add_executable(posix_demo
     main.c
-    ../app/app_ui.c
-    ../app/app_flash.c
-    ../app/gui.c
-    ../tasks/task_sensor.c
-    ../tasks/task_button.c
-    ../tasks/task_lcd.c
-    ../tasks/task_control.c
     syscfg/ti_msp_dl_config.c
     freertos/ticlang/startup_mspm0g350x_ticlang.c
 )

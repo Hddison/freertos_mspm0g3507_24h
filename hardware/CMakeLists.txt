@@ -1,4 +1,4 @@
-set(HW_SOURCES hw_jy61p.c hw_st7789.c hw_nchd12.c hw_motor.c hw_w25q128.c)
+set(HW_SOURCES hw_jy61p.c hw_st7789.c hw_nchd12.c hw_motor.c hw_w25q128.c hw_buzzer.c)
 add_library(hw STATIC ${HW_SOURCES})
 
 target_include_directories(hw PUBLIC

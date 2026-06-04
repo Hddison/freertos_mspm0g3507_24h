@@ -109,42 +109,6 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 
-/* Defines for CAP_MOTOR1 */
-#define CAP_MOTOR1_INST                                                  (TIMG8)
-#define CAP_MOTOR1_INST_IRQHandler                              TIMG8_IRQHandler
-#define CAP_MOTOR1_INST_INT_IRQN                                (TIMG8_INT_IRQn)
-#define CAP_MOTOR1_INST_LOAD_VALUE                                       (4999U)
-/* GPIO defines for channel 0 */
-#define GPIO_CAP_MOTOR1_C0_PORT                                            GPIOA
-#define GPIO_CAP_MOTOR1_C0_PIN                                    DL_GPIO_PIN_26
-#define GPIO_CAP_MOTOR1_C0_IOMUX                                 (IOMUX_PINCM59)
-#define GPIO_CAP_MOTOR1_C0_IOMUX_FUNC                IOMUX_PINCM59_PF_TIMG8_CCP0
-/* GPIO defines for channel 1 */
-#define GPIO_CAP_MOTOR1_C1_PORT                                            GPIOA
-#define GPIO_CAP_MOTOR1_C1_PIN                                    DL_GPIO_PIN_27
-#define GPIO_CAP_MOTOR1_C1_IOMUX                                 (IOMUX_PINCM60)
-#define GPIO_CAP_MOTOR1_C1_IOMUX_FUNC                IOMUX_PINCM60_PF_TIMG8_CCP1
-
-/* Defines for CAP_MOTOR2 */
-#define CAP_MOTOR2_INST                                                  (TIMG7)
-#define CAP_MOTOR2_INST_IRQHandler                              TIMG7_IRQHandler
-#define CAP_MOTOR2_INST_INT_IRQN                                (TIMG7_INT_IRQn)
-#define CAP_MOTOR2_INST_LOAD_VALUE                                       (9999U)
-/* GPIO defines for channel 0 */
-#define GPIO_CAP_MOTOR2_C0_PORT                                            GPIOA
-#define GPIO_CAP_MOTOR2_C0_PIN                                    DL_GPIO_PIN_28
-#define GPIO_CAP_MOTOR2_C0_IOMUX                                  (IOMUX_PINCM3)
-#define GPIO_CAP_MOTOR2_C0_IOMUX_FUNC                 IOMUX_PINCM3_PF_TIMG7_CCP0
-/* GPIO defines for channel 1 */
-#define GPIO_CAP_MOTOR2_C1_PORT                                            GPIOA
-#define GPIO_CAP_MOTOR2_C1_PIN                                    DL_GPIO_PIN_31
-#define GPIO_CAP_MOTOR2_C1_IOMUX                                  (IOMUX_PINCM6)
-#define GPIO_CAP_MOTOR2_C1_IOMUX_FUNC                 IOMUX_PINCM6_PF_TIMG7_CCP1
-
-
-
-
-
 
 /* Defines for I2C_0 */
 #define I2C_0_INST                                                          I2C0
@@ -216,20 +180,26 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 /* Defines for DMA_I2C_TX */
-#define DMA_I2C_TX_CHAN_ID                                                   (4)
+#define DMA_I2C_TX_CHAN_ID                                                   (6)
 #define I2C_0_INST_DMA_TRIGGER_0                              (DMA_I2C0_TX_TRIG)
 /* Defines for DMA_I2C_RX */
-#define DMA_I2C_RX_CHAN_ID                                                   (3)
+#define DMA_I2C_RX_CHAN_ID                                                   (5)
 #define I2C_0_INST_DMA_TRIGGER_1                              (DMA_I2C0_RX_TRIG)
 /* Defines for DMA_CH0 */
-#define DMA_CH0_CHAN_ID                                                      (2)
+#define DMA_CH0_CHAN_ID                                                      (4)
 #define I2C_NCHD12_INST_DMA_TRIGGER                           (DMA_I2C1_RX_TRIG)
 /* Defines for DMA_SPI_LCD_TX */
-#define DMA_SPI_LCD_TX_CHAN_ID                                               (1)
+#define DMA_SPI_LCD_TX_CHAN_ID                                               (3)
 #define SPI_LCD_INST_DMA_TRIGGER_0                            (DMA_SPI1_TX_TRIG)
 /* Defines for DMA_SPI_LCD_RX */
-#define DMA_SPI_LCD_RX_CHAN_ID                                               (0)
+#define DMA_SPI_LCD_RX_CHAN_ID                                               (2)
 #define SPI_LCD_INST_DMA_TRIGGER_1                            (DMA_SPI1_RX_TRIG)
+/* Defines for DMA_CH1 */
+#define DMA_CH1_CHAN_ID                                                      (1)
+#define UART_0_INST_DMA_TRIGGER_0                            (DMA_UART0_RX_TRIG)
+/* Defines for DMA_CH2 */
+#define DMA_CH2_CHAN_ID                                                      (0)
+#define UART_0_INST_DMA_TRIGGER_1                            (DMA_UART0_TX_TRIG)
 
 
 /* Port definition for Pin Group GPIO_LEDS */
@@ -244,6 +214,12 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for W_CS: GPIOB.6 with pinCMx 23 on package pin 58 */
 #define GPIO_W25Q_W_CS_PIN                                       (DL_GPIO_PIN_6)
 #define GPIO_W25Q_W_CS_IOMUX                                     (IOMUX_PINCM23)
+/* Port definition for Pin Group GPIO_BEEP */
+#define GPIO_BEEP_PORT                                                   (GPIOB)
+
+/* Defines for PIN_BEEP: GPIOB.22 with pinCMx 50 on package pin 21 */
+#define GPIO_BEEP_PIN_BEEP_PIN                                  (DL_GPIO_PIN_22)
+#define GPIO_BEEP_PIN_BEEP_IOMUX                                 (IOMUX_PINCM50)
 /* Defines for PIN_UP: GPIOA.24 with pinCMx 54 on package pin 25 */
 #define GPIO_KEY_PIN_UP_PORT                                             (GPIOA)
 #define GPIO_KEY_PIN_UP_PIN                                     (DL_GPIO_PIN_24)
@@ -298,6 +274,28 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for AIN2: GPIOA.15 with pinCMx 37 on package pin 8 */
 #define GPIO_MOTOR_AIN2_PIN                                     (DL_GPIO_PIN_15)
 #define GPIO_MOTOR_AIN2_IOMUX                                    (IOMUX_PINCM37)
+/* Port definition for Pin Group GPIO_ENC */
+#define GPIO_ENC_PORT                                                    (GPIOA)
+
+/* Defines for PIN_E1A: GPIOA.27 with pinCMx 60 on package pin 31 */
+// pins affected by this interrupt request:["PIN_E1A","PIN_E1B","PIN_E2A","PIN_E2B"]
+#define GPIO_ENC_INT_IRQN                                       (GPIOA_INT_IRQn)
+#define GPIO_ENC_INT_IIDX                       (DL_INTERRUPT_GROUP1_IIDX_GPIOA)
+#define GPIO_ENC_PIN_E1A_IIDX                               (DL_GPIO_IIDX_DIO27)
+#define GPIO_ENC_PIN_E1A_PIN                                    (DL_GPIO_PIN_27)
+#define GPIO_ENC_PIN_E1A_IOMUX                                   (IOMUX_PINCM60)
+/* Defines for PIN_E1B: GPIOA.26 with pinCMx 59 on package pin 30 */
+#define GPIO_ENC_PIN_E1B_IIDX                               (DL_GPIO_IIDX_DIO26)
+#define GPIO_ENC_PIN_E1B_PIN                                    (DL_GPIO_PIN_26)
+#define GPIO_ENC_PIN_E1B_IOMUX                                   (IOMUX_PINCM59)
+/* Defines for PIN_E2A: GPIOA.28 with pinCMx 3 on package pin 35 */
+#define GPIO_ENC_PIN_E2A_IIDX                               (DL_GPIO_IIDX_DIO28)
+#define GPIO_ENC_PIN_E2A_PIN                                    (DL_GPIO_PIN_28)
+#define GPIO_ENC_PIN_E2A_IOMUX                                    (IOMUX_PINCM3)
+/* Defines for PIN_E2B: GPIOA.31 with pinCMx 6 on package pin 39 */
+#define GPIO_ENC_PIN_E2B_IIDX                               (DL_GPIO_IIDX_DIO31)
+#define GPIO_ENC_PIN_E2B_PIN                                    (DL_GPIO_PIN_31)
+#define GPIO_ENC_PIN_E2B_IOMUX                                    (IOMUX_PINCM6)
 
 
 /* clang-format on */
@@ -309,8 +307,6 @@ void SYSCFG_DL_SYSCTL_init(void);
 
 bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 void SYSCFG_DL_PWM_MOTOR_init(void);
-void SYSCFG_DL_CAP_MOTOR1_init(void);
-void SYSCFG_DL_CAP_MOTOR2_init(void);
 void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_I2C_NCHD12_init(void);
 void SYSCFG_DL_UART_0_init(void);

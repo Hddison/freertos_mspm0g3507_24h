@@ -10,28 +10,13 @@
 
 #include "ti_msp_dl_config.h"
 #include "bsp_spi.h"
+#include "bsp_system.h"
 #include <ti/driverlib/dl_gpio.h>
-#include <ti/driverlib/dl_dma.h>
 #include <string.h>
 
-#include "bsp_system.h"
-
-/* ── DMA 行缓冲: 单行像素 (最大满足 Font24 × 10 字符 = 170px) ── */
+/* ── DMA 行缓冲 (像素组装区, 由 BSP_SPI_tx_dma 发送) ── */
 #define DMA_ROW_MAX 256
 static uint16_t dma_row[DMA_ROW_MAX];
-
-/* ── DMA 行发送 ── */
-static inline void spi_dma_row(const uint16_t *buf, uint16_t pixels)
-{
-    uint16_t bytes = pixels * 2;
-    DL_DMA_setSrcAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID, (uint32_t)buf);
-    DL_DMA_setDestAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID,
-                       (uint32_t)&SPI_LCD_INST->TXDATA);
-    DL_DMA_setTransferSize(DMA, DMA_SPI_LCD_TX_CHAN_ID, bytes);
-    DL_DMA_enableChannel(DMA, DMA_SPI_LCD_TX_CHAN_ID);
-    while (DL_DMA_getTransferSize(DMA, DMA_SPI_LCD_TX_CHAN_ID) != 0);
-    DL_DMA_disableChannel(DMA, DMA_SPI_LCD_TX_CHAN_ID);
-}
 
 /* ── GPIO 控制宏 ── */
 #define CS_0  DL_GPIO_clearPins(GPIOB, GPIO_LCD_LCD_CS_PIN)
@@ -195,7 +180,7 @@ void ST7789_clearRawDMA(uint16_t color, uint16_t w, uint16_t h)
 
     DC_1; CS_0;
     for (uint16_t row = 0; row < h; row++) {
-        spi_dma_row(dma_row, w);
+        BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
     }
     CS_1;
 }
@@ -230,7 +215,7 @@ void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
             }
             if (font_w % 8 != 0) ptr++;
         }
-        spi_dma_row(dma_row, w);
+        BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
     }
     CS_1;
 }

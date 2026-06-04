@@ -1,9 +1,8 @@
-set(HW_SOURCES hw_jy61p.c hw_st7789.c hw_nchd12.c hw_motor.c hw_w25q128.c hw_buzzer.c)
-add_library(hw STATIC ${HW_SOURCES})
+set(HAL_SOURCES hal_spi.c)
+add_library(hal STATIC ${HAL_SOURCES})
 
-target_include_directories(hw PUBLIC
+target_include_directories(hal PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/hal
     ${CMAKE_SOURCE_DIR}/bsp
     ${CMAKE_SOURCE_DIR}/posix_demo/syscfg
     ${CMAKE_SOURCE_DIR}/posix_demo
@@ -14,4 +13,4 @@ target_include_directories(hw PUBLIC
     ${CMAKE_SOURCE_DIR}/freertos_builds_LP_MSPM0G3507_release_ticlang
 )
 
-target_compile_definitions(hw PRIVATE __MSPM0G3507__)
+target_compile_definitions(hal PRIVATE __MSPM0G3507__)

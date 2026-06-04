@@ -1,62 +1,77 @@
 /*
- * main.c — Test 3: Buzzer (FreeRTOS, UART-triggered)
+ * main.c — Test 4b: Flash R/W stress under FreeRTOS (HAL mutex)
  */
 #include <FreeRTOS.h>
 #include <task.h>
 #include "ti_msp_dl_config.h"
 #include "bsp_uart.h"
-#include "hw_buzzer.h"
-#include <stdio.h>
+#include "bsp_system.h"
+#include "hal_spi.h"
+#include "hw_w25q128.h"
+#include <ti/driverlib/dl_gpio.h>
 
-static TaskHandle_t g_hBuzzer = NULL;
+/* Stack overflow hook (configCHECK_FOR_STACK_OVERFLOW=2 需要) */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    BSP_UART_tx_str("STACK OVERFLOW: ");
+    BSP_UART_tx_str(pcTaskName);
+    BSP_UART_tx_str("\r\n");
+    for (;;) {}
+}
 
-/* ── Buzzer Task ── */
-static void prvBuzzerTask(void *pvParameters)
+/* ── Writer Task ── */
+static void prvWriterTask(void *pvParameters)
 {
     (void)pvParameters;
-    Buzzer_init();
-    BSP_UART_tx_str("[BUZZ] Task started\r\n");
+    BSP_UART_tx_str("[WRITER] started\r\n");
 
+    uint8_t wbuf[32];
+    for (int i = 0; i < 32; i++) wbuf[i] = (uint8_t)(0x50 + i);
+
+    uint32_t cycle = 0;
     for (;;) {
-        uint32_t count;
-        if (xTaskNotifyWait(0, 0, &count, portMAX_DELAY) != pdPASS)
+        if (!HW_W25Q128_write(wbuf, 0x5000, 32)) {
+            BSP_UART_tx_str("[WRITER] write FAIL\r\n");
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
-
-        char buf[32];
-        int n = snprintf(buf, sizeof(buf),
-                         "[BUZZ] beep x%lu\r\n", (unsigned long)count);
-        if (n > 0) BSP_UART_tx_dma((const uint8_t *)buf, (uint16_t)n);
-
-        for (uint32_t i = 0; i < count; i++) {
-            Buzzer_set(1); vTaskDelay(pdMS_TO_TICKS(150));
-            Buzzer_set(0); vTaskDelay(pdMS_TO_TICKS(100));
         }
+
+        uint8_t rbuf[32];
+        if (!HW_W25Q128_read(rbuf, 0x5000, 32)) {
+            BSP_UART_tx_str("[WRITER] read FAIL\r\n");
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
+        }
+
+        bool ok = true;
+        for (int i = 0; i < 32; i++) {
+            if (wbuf[i] != rbuf[i]) { ok = false; break; }
+        }
+
+        BSP_UART_tx_str(ok ? "[WRITER] PASS\r\n" : "[WRITER] FAIL\r\n");
+
+        cycle++;
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-/* ── UART RX Task ──
- * 接收一个字符: '1'~'9' → beep N 次, 其他字符 → beep 1 次 */
-static void prvUartRxTask(void *pvParameters)
+/* ── Reader Task ── */
+static void prvReaderTask(void *pvParameters)
 {
     (void)pvParameters;
-    BSP_UART_tx_str("[UART] Rx task started, type to beep...\r\n");
+    BSP_UART_tx_str("[READER] started\r\n");
 
+    uint32_t count = 0;
     for (;;) {
-        uint8_t c;
-        if (BSP_UART_rx_byte_timeout(&c, 100)) {
-            /* 回显 */
-            BSP_UART_tx_byte(c);
-
-            uint32_t count = 1;
-            if (c >= '1' && c <= '9') {
-                count = (uint32_t)(c - '0');
-            }
-
-            if (g_hBuzzer) {
-                xTaskNotify(g_hBuzzer, count, eSetValueWithOverwrite);
-            }
+        uint16_t id = HW_W25Q128_readID();
+        if (id != 0xEF17) {
+            BSP_UART_tx_str("[READER] BAD ID\r\n");
         }
-        /* no delay needed — rx_byte_timeout already polls with delay */
+        count++;
+        if (count % 10 == 0) {
+            BSP_UART_tx_str("[READER] 10 OK\r\n");
+        }
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
@@ -64,13 +79,24 @@ static void prvUartRxTask(void *pvParameters)
 int main(void)
 {
     SYSCFG_DL_init();
-    BSP_UART_tx_str("\r\n=== Test 3: Buzzer (UART trigger) ===\r\n");
+    DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
+    BSP_delay_ms(100);
 
-    if (xTaskCreate(prvBuzzerTask, "BUZZ", 256, NULL, 3, &g_hBuzzer) != pdPASS) {
-        BSP_UART_tx_str("FATAL: BUZZ\r\n"); for (;;) {}
+    BSP_UART_tx_str("\r\n=== Test 4b: Flash stress (RTOS) ===\r\n");
+
+    HAL_SPI_init();
+
+    /* 屏蔽所有外设中断 — 只留 FreeRTOS 的 SVC/PendSV/SysTick */
+    for (IRQn_Type irq = GPIOA_INT_IRQn; irq <= DMA_INT_IRQn; irq++) {
+        NVIC_DisableIRQ(irq);
     }
-    if (xTaskCreate(prvUartRxTask, "URX", 256, NULL, 2, NULL) != pdPASS) {
-        BSP_UART_tx_str("FATAL: URX\r\n"); for (;;) {}
+
+    /* stack >= configMINIMAL_STACK_SIZE (256) */
+    if (xTaskCreate(prvWriterTask, "WRITER", 1024, NULL, 2, NULL) != pdPASS) {
+        BSP_UART_tx_str("FATAL: WRITER\r\n"); for (;;) {}
+    }
+    if (xTaskCreate(prvReaderTask, "READER", 512, NULL, 1, NULL) != pdPASS) {
+        BSP_UART_tx_str("FATAL: READER\r\n"); for (;;) {}
     }
 
     BSP_UART_tx_str("FreeRTOS starting...\r\n");

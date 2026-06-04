@@ -3,16 +3,17 @@
  * W25Q128 SPI Flash 驱动
  *
  * 命令/地址: CPU 轮询 (BSP_SPI_txrx_byte)
- * 数据:      DMA (BSP_SPI_rx_dma / BSP_SPI_tx_dma)
+ * 数据读:    DMA RX  (BSP_SPI_rx_dma)
+ * 数据写:    CPU 轮询 (逐字节 _spi, 免 DMA TX 偏移问题)
  *
- * CS=PB6 由本模块控制。
- * SPI1 与 LCD 共享, 调用者负责互斥。
+ * CS=PB6 由本模块控制。SPI1 与 LCD 共享, 通过 HAL_SPI_lock/unlock 互斥。
  */
 
 #include "hw_w25q128.h"
 #include "ti_msp_dl_config.h"
 #include <ti/driverlib/dl_gpio.h>
 #include "bsp_spi.h"
+#include "hal_spi.h"
 
 /* ── CS (PB6, 低有效) ── */
 #define CS_LOW()   DL_GPIO_clearPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN)
@@ -34,49 +35,76 @@ static bool _waitBusy(void) {
     return true;
 }
 
-/* ══════ API ══════ */
+/* ══════ 公开 API (每函数自动加锁/解锁) ══════ */
 
-/* ── 读状态寄存器 ── */
-uint8_t HW_W25Q128_readSR1(void) {
+uint8_t HW_W25Q128_readSR1(void)
+{
+    HAL_SPI_lock();
     uint8_t sr;
     CS_LOW(); _spi(W25Q_CMD_READ_SR1); sr=_spi(0xFF); CS_HIGH();
+    HAL_SPI_unlock();
     return sr;
 }
 
-/* ── 读 ID (CPU) ── */
-uint16_t HW_W25Q128_readID(void) {
+uint16_t HW_W25Q128_readID(void)
+{
+    HAL_SPI_lock();
     uint16_t id;
     CS_LOW();
     _spi(W25Q_CMD_RDID); _spi(0x00); _spi(0x00); _spi(0x00);
     id  = (uint16_t)_spi(0xFF) << 8;
     id |= (uint16_t)_spi(0xFF);
     CS_HIGH();
+    HAL_SPI_unlock();
     return id;
 }
 
-/* ── 读数据 (命令+地址 CPU, 数据 DMA RX) ── */
-bool HW_W25Q128_read(uint8_t *buf, uint32_t addr, uint16_t len) {
+bool HW_W25Q128_read(uint8_t *buf, uint32_t addr, uint16_t len)
+{
     if (!buf || !len) return false;
 
+    HAL_SPI_lock();
     CS_LOW();
     _spi(W25Q_CMD_READ_DATA);
     _spi((uint8_t)(addr >> 16));
     _spi((uint8_t)(addr >> 8));
     _spi((uint8_t)addr);
-    /* 数据阶段: DMA 接收, BSP 自动发 0xFF 提供时钟 */
     bool ok = BSP_SPI_rx_dma(buf, len);
     CS_HIGH();
+    HAL_SPI_unlock();
     return ok;
 }
 
-/* ── 写数据 (页编程, CPU, 不超 256 字节) ── */
-bool HW_W25Q128_write(const uint8_t *buf, uint32_t addr, uint16_t len) {
+/* ── 内部无锁版本 (调用者已持有锁) ── */
+
+static bool _eraseSector(uint16_t sector)
+{
+    uint32_t addr = (uint32_t)sector * W25Q_SECTOR_SIZE;
+    _wren(); if (!_waitBusy()) return false;
+    CS_LOW();
+    _spi(W25Q_CMD_SECTOR_ERASE);
+    _spi((uint8_t)(addr >> 16));
+    _spi((uint8_t)(addr >> 8));
+    _spi((uint8_t)addr);
+    CS_HIGH();
+    return _waitBusy();
+}
+
+/* ══════ 公开 API (每函数自动加锁/解锁) ══════ */
+
+bool HW_W25Q128_write(const uint8_t *buf, uint32_t addr, uint16_t len)
+{
     if (!buf || !len) return false;
 
-    uint16_t sector = (uint16_t)(addr / W25Q_SECTOR_SIZE);
-    if (!HW_W25Q128_eraseSector(sector)) return false;
+    HAL_SPI_lock();
 
-    _wren(); if (!_waitBusy()) return false;
+    uint16_t sector = (uint16_t)(addr / W25Q_SECTOR_SIZE);
+    if (!_eraseSector(sector)) {
+        HAL_SPI_unlock();
+        return false;
+    }
+
+    _wren(); if (!_waitBusy()) { HAL_SPI_unlock(); return false; }
 
     CS_LOW();
     _spi(W25Q_CMD_PAGE_PROG);
@@ -86,27 +114,25 @@ bool HW_W25Q128_write(const uint8_t *buf, uint32_t addr, uint16_t len) {
     for (uint16_t i = 0; i < len; i++) _spi(buf[i]);
     CS_HIGH();
 
-    return _waitBusy();
+    bool ok = _waitBusy();
+    HAL_SPI_unlock();
+    return ok;
 }
 
-/* ── 扇区擦除 ── */
-bool HW_W25Q128_eraseSector(uint16_t sector) {
-    uint32_t addr = (uint32_t)sector * W25Q_SECTOR_SIZE;
-    _wren(); if (!_waitBusy()) return false;
-
-    CS_LOW();
-    _spi(W25Q_CMD_SECTOR_ERASE);
-    _spi((uint8_t)(addr >> 16));
-    _spi((uint8_t)(addr >> 8));
-    _spi((uint8_t)addr);
-    CS_HIGH();
-
-    return _waitBusy();  /* 典型 45ms */
+bool HW_W25Q128_eraseSector(uint16_t sector)
+{
+    HAL_SPI_lock();
+    bool ok = _eraseSector(sector);
+    HAL_SPI_unlock();
+    return ok;
 }
 
-/* ── 全片擦除 ── */
-bool HW_W25Q128_eraseChip(void) {
-    _wren(); if (!_waitBusy()) return false;
+bool HW_W25Q128_eraseChip(void)
+{
+    HAL_SPI_lock();
+    _wren(); if (!_waitBusy()) { HAL_SPI_unlock(); return false; }
     CS_LOW(); _spi(W25Q_CMD_CHIP_ERASE); CS_HIGH();
-    return _waitBusy();  /* 典型 40s */
+    bool ok = _waitBusy();
+    HAL_SPI_unlock();
+    return ok;
 }

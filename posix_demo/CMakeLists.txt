@@ -38,6 +38,7 @@ target_link_options(posix_demo PRIVATE
 
 target_link_libraries(posix_demo
     hw
+    hal
     bsp
     lib_gui
     freertos_builds

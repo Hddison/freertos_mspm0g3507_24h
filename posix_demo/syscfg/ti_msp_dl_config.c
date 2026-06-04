@@ -556,7 +556,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_SPI_LCD_init(void) {
     /* Enable SPI RX interrupt as a trigger for DMA */
     DL_SPI_enableDMAReceiveEvent(SPI_LCD_INST, DL_SPI_DMA_INTERRUPT_RX);
     /* Set RX and TX FIFO threshold levels */
-    DL_SPI_setFIFOThreshold(SPI_LCD_INST, DL_SPI_RX_FIFO_LEVEL_FULL, DL_SPI_TX_FIFO_LEVEL_EMPTY);
+    DL_SPI_setFIFOThreshold(SPI_LCD_INST, DL_SPI_RX_FIFO_LEVEL_1_2_FULL, DL_SPI_TX_FIFO_LEVEL_1_2_EMPTY);
 
     /* Enable module */
     DL_SPI_enable(SPI_LCD_INST);

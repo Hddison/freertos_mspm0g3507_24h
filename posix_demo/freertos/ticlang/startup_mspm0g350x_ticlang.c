@@ -50,11 +50,9 @@ extern void Reset_Handler(void) __attribute__((weak));
 extern void NMI_Handler(void) __attribute__((weak, alias("Default_Handler")));
 extern void HardFault_Handler(void)
     __attribute__((weak, alias("Default_Handler")));
-extern void SVC_Handler(void) __attribute__((weak, alias("Default_Handler")));
-extern void PendSV_Handler(void)
-    __attribute__((weak, alias("Default_Handler")));
-extern void SysTick_Handler(void)
-    __attribute__((weak, alias("Default_Handler")));
+extern void SVC_Handler(void);
+extern void PendSV_Handler(void);
+extern void SysTick_Handler(void);
 
 /* Device Specific Interrupt Handlers */
 extern void GROUP0_IRQHandler(void)
@@ -187,11 +185,30 @@ void Reset_Handler(void)
 }
 
 /* This is the code that gets called when the processor receives an unexpected  */
-/* interrupt.  This simply enters an infinite loop, preserving the system state */
-/* for examination by a debugger.                                               */
+/* interrupt.  Prints IPSR (exception number) then loops.                       */
+
+extern void BSP_UART_tx_str(const char *str);
+extern void BSP_UART_tx_byte(uint8_t data);
+
 void Default_Handler(void)
 {
-    /* Enter an infinite loop. */
+    uint32_t ipsr;
+    __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
+
+    BSP_UART_tx_str("\r\n!!! Default_Handler IPSR=0x");
+    for (int shift = 28; shift >= 0; shift -= 4) {
+        uint8_t nib = (ipsr >> shift) & 0xF;
+        uint8_t c = (nib < 10) ? ('0' + nib) : ('A' + nib - 10);
+        BSP_UART_tx_byte(c);
+    }
+    BSP_UART_tx_str("  (IRQn=");
+    if (ipsr >= 16) {
+        uint32_t irqn = ipsr - 16;
+        BSP_UART_tx_byte((irqn < 10) ? ('0' + irqn) : ('0' + irqn/10));
+        if (irqn >= 10) BSP_UART_tx_byte('0' + irqn%10);
+    }
+    BSP_UART_tx_str(")\r\n");
+
     while (1) {
     }
 }

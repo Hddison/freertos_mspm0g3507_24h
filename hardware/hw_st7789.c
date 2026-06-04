@@ -11,6 +11,7 @@
 #include "ti_msp_dl_config.h"
 #include "bsp_spi.h"
 #include "bsp_system.h"
+#include "hal_spi.h"
 #include <ti/driverlib/dl_gpio.h>
 #include <string.h>
 
@@ -109,6 +110,7 @@ static void init_reg(void)
 
 void ST7789_init(ST7789_DIR dir)
 {
+    HAL_SPI_lock();
     lcd_dir = dir;
     BLK_0;
     reset();
@@ -122,6 +124,7 @@ void ST7789_init(ST7789_DIR dir)
     case ST7789_CCW90:      send_data8(0x20); break;  /* MV=1: row/col swap */
     default:                send_data8(0x00); break;
     }
+    HAL_SPI_unlock();
 }
 
 void ST7789_setWindows(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -147,6 +150,7 @@ void ST7789_setWindows(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 
 void ST7789_clear(uint16_t color)
 {
+    HAL_SPI_lock();
     uint32_t total = (uint32_t)ST7789_WIDTH * ST7789_HEIGHT;
     ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
     DC_1; CS_0;
@@ -155,11 +159,13 @@ void ST7789_clear(uint16_t color)
         BSP_SPI_tx_byte((uint8_t)color);
     }
     CS_1;
+    HAL_SPI_unlock();
 }
 
 /* 高效区域填充: 调用者需先 setWindows, 本函数只写数据 */
 void ST7789_clearRaw(uint16_t color, uint16_t w, uint16_t h)
 {
+    HAL_SPI_lock();
     uint32_t total = (uint32_t)w * h;
     uint8_t hi = (uint8_t)(color >> 8);
     uint8_t lo = (uint8_t)color;
@@ -169,12 +175,13 @@ void ST7789_clearRaw(uint16_t color, uint16_t w, uint16_t h)
         BSP_SPI_tx_byte(lo);
     }
     CS_1;
+    HAL_SPI_unlock();
 }
 
 /* DMA 版区域填充 */
 void ST7789_clearRawDMA(uint16_t color, uint16_t w, uint16_t h)
 {
-    /* 填充一行 DMA buffer, 逐行发送 */
+    HAL_SPI_lock();
     uint16_t pixels_per_dma = (w < DMA_ROW_MAX) ? w : DMA_ROW_MAX;
     for (uint16_t i = 0; i < pixels_per_dma; i++) dma_row[i] = color;
 
@@ -183,6 +190,7 @@ void ST7789_clearRawDMA(uint16_t color, uint16_t w, uint16_t h)
         BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
     }
     CS_1;
+    HAL_SPI_unlock();
 }
 
 /* 快速字符串绘制: 1 次 setWindows, DMA 逐行发送, 零 Paint 开销 */
@@ -196,6 +204,8 @@ void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
 
     /* 缓冲区溢出保护: w 不能超过 DMA_ROW_MAX */
     if (w > DMA_ROW_MAX) return;
+
+    HAL_SPI_lock();
 
     uint16_t bpc = font_w / 8 + (font_w % 8 ? 1 : 0);  /* bytes per char row */
     uint16_t char_bytes = font_h * bpc;                  /* bytes per char  */
@@ -218,12 +228,15 @@ void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
         BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
     }
     CS_1;
+    HAL_SPI_unlock();
 }
 
 void ST7789_drawPoint(uint16_t x, uint16_t y, uint16_t color)
 {
+    HAL_SPI_lock();
     ST7789_setWindows(x, y, x, y);
     send_data16(color);
+    HAL_SPI_unlock();
 }
 
 void ST7789_backLight(uint8_t on)

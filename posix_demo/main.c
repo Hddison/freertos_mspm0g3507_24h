@@ -1,5 +1,5 @@
 /*
- * main.c — Test 4b: Flash R/W stress under FreeRTOS (HAL mutex)
+ * main.c — Test 6: LCD + Flash concurrent (FreeRTOS, HAL mutex)
  */
 #include <FreeRTOS.h>
 #include <task.h>
@@ -8,9 +8,13 @@
 #include "bsp_system.h"
 #include "hal_spi.h"
 #include "hw_w25q128.h"
+#include "hw_st7789.h"
 #include <ti/driverlib/dl_gpio.h>
+#include "gui_paint.h"
 
-/* Stack overflow hook (configCHECK_FOR_STACK_OVERFLOW=2 需要) */
+extern const uint8_t Font20_Table[];
+
+/* Stack overflow hook */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
     BSP_UART_tx_str("STACK OVERFLOW: ");
@@ -19,27 +23,51 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
     for (;;) {}
 }
 
-/* ── Writer Task ── */
-static void prvWriterTask(void *pvParameters)
+/* ── LCD Task: 循环填色 + 文字 ── */
+static void prvLcdTask(void *pvParameters)
 {
     (void)pvParameters;
-    BSP_UART_tx_str("[WRITER] started\r\n");
+    BSP_UART_tx_str("[LCD] started\r\n");
+
+    uint16_t colors[] = { RED, GREEN, BLUE };
+    const char *names[] = { "RED", "GREEN", "BLUE" };
+    const uint16_t txt_colors[] = { WHITE, BLACK, WHITE };
+    int idx = 0;
+    for (;;) {
+        /* 全屏填色 */
+        ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
+        ST7789_clearRawDMA(colors[idx], ST7789_WIDTH, ST7789_HEIGHT);
+
+        /* 显示颜色名 */
+        ST7789_drawStringFast(30, 140, names[idx], Font20_Table, 16, 20,
+                              txt_colors[idx], colors[idx]);
+
+        idx = (idx + 1) % 3;
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
+
+/* ── Flash Task: 反复写+读+校验 ── */
+static void prvFlashTask(void *pvParameters)
+{
+    (void)pvParameters;
+    BSP_UART_tx_str("[FLASH] started\r\n");
 
     uint8_t wbuf[32];
-    for (int i = 0; i < 32; i++) wbuf[i] = (uint8_t)(0x50 + i);
+    for (int i = 0; i < 32; i++) wbuf[i] = (uint8_t)(0xA0 + i);
 
     uint32_t cycle = 0;
     for (;;) {
         if (!HW_W25Q128_write(wbuf, 0x5000, 32)) {
-            BSP_UART_tx_str("[WRITER] write FAIL\r\n");
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            BSP_UART_tx_str("[FLASH] write FAIL\r\n");
+            vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
 
         uint8_t rbuf[32];
         if (!HW_W25Q128_read(rbuf, 0x5000, 32)) {
-            BSP_UART_tx_str("[WRITER] read FAIL\r\n");
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            BSP_UART_tx_str("[FLASH] read FAIL\r\n");
+            vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
 
@@ -48,29 +76,13 @@ static void prvWriterTask(void *pvParameters)
             if (wbuf[i] != rbuf[i]) { ok = false; break; }
         }
 
-        BSP_UART_tx_str(ok ? "[WRITER] PASS\r\n" : "[WRITER] FAIL\r\n");
-
         cycle++;
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
-/* ── Reader Task ── */
-static void prvReaderTask(void *pvParameters)
-{
-    (void)pvParameters;
-    BSP_UART_tx_str("[READER] started\r\n");
-
-    uint32_t count = 0;
-    for (;;) {
-        uint16_t id = HW_W25Q128_readID();
-        if (id != 0xEF17) {
-            BSP_UART_tx_str("[READER] BAD ID\r\n");
+        if (ok) {
+            BSP_UART_tx_str("[FLASH] PASS\r\n");
+        } else {
+            BSP_UART_tx_str("[FLASH] FAIL\r\n");
         }
-        count++;
-        if (count % 10 == 0) {
-            BSP_UART_tx_str("[READER] 10 OK\r\n");
-        }
+
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
@@ -82,21 +94,22 @@ int main(void)
     DL_GPIO_setPins(GPIO_W25Q_PORT, GPIO_W25Q_W_CS_PIN);
     BSP_delay_ms(100);
 
-    BSP_UART_tx_str("\r\n=== Test 4b: Flash stress (RTOS) ===\r\n");
+    BSP_UART_tx_str("\r\n=== Test 6: LCD + Flash (RTOS) ===\r\n");
+
+    ST7789_init(ST7789_HORIZONTAL);
+    ST7789_backLight(1);
+    ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
+    ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT);
+    BSP_UART_tx_str("LCD init done\r\n");
 
     HAL_SPI_init();
 
-    /* 屏蔽所有外设中断 — 只留 FreeRTOS 的 SVC/PendSV/SysTick */
-    for (IRQn_Type irq = GPIOA_INT_IRQn; irq <= DMA_INT_IRQn; irq++) {
-        NVIC_DisableIRQ(irq);
-    }
+    NVIC_DisableIRQ(UART_0_INST_INT_IRQN);
+    NVIC_DisableIRQ(GPIOA_INT_IRQn);
 
-    /* stack >= configMINIMAL_STACK_SIZE (256) */
-    if (xTaskCreate(prvWriterTask, "WRITER", 1024, NULL, 2, NULL) != pdPASS) {
-        BSP_UART_tx_str("FATAL: WRITER\r\n"); for (;;) {}
-    }
-    if (xTaskCreate(prvReaderTask, "READER", 512, NULL, 1, NULL) != pdPASS) {
-        BSP_UART_tx_str("FATAL: READER\r\n"); for (;;) {}
+    if (xTaskCreate(prvLcdTask,   "LCD",   1024, NULL, 1, NULL) != pdPASS ||
+        xTaskCreate(prvFlashTask, "FLASH",  768, NULL, 2, NULL) != pdPASS) {
+        BSP_UART_tx_str("FATAL\r\n"); for (;;) {}
     }
 
     BSP_UART_tx_str("FreeRTOS starting...\r\n");

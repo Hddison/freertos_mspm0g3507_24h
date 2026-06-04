@@ -13,6 +13,7 @@
 #include "bsp_system.h"
 #include "hal_spi.h"
 #include <ti/driverlib/dl_gpio.h>
+#include <ti/driverlib/dl_spi.h>
 #include <string.h>
 
 /* ── DMA 行缓冲 (像素组装区, 由 BSP_SPI_tx_dma 发送) ── */
@@ -189,6 +190,12 @@ void ST7789_clearRawDMA(uint16_t color, uint16_t w, uint16_t h)
     for (uint16_t row = 0; row < h; row++) {
         BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
     }
+    /* 等 TX FIFO 排空 + drain RX FIFO, 否则残留污染下次 SPI */
+    while (!DL_SPI_isTXFIFOEmpty(SPI_LCD_INST));
+    while (DL_SPI_isBusy(SPI_LCD_INST));
+    while (!DL_SPI_isRXFIFOEmpty(SPI_LCD_INST)) {
+        (void)DL_SPI_receiveData8(SPI_LCD_INST);
+    }
     CS_1;
     HAL_SPI_unlock();
 }
@@ -226,6 +233,11 @@ void ST7789_drawStringFast(uint16_t x, uint16_t y, const char *str,
             if (font_w % 8 != 0) ptr++;
         }
         BSP_SPI_tx_dma((uint8_t *)dma_row, (uint16_t)(w * 2));
+    }
+    while (!DL_SPI_isTXFIFOEmpty(SPI_LCD_INST));
+    while (DL_SPI_isBusy(SPI_LCD_INST));
+    while (!DL_SPI_isRXFIFOEmpty(SPI_LCD_INST)) {
+        (void)DL_SPI_receiveData8(SPI_LCD_INST);
     }
     CS_1;
     HAL_SPI_unlock();

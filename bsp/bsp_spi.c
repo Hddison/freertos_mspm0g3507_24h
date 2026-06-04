@@ -43,13 +43,25 @@ bool BSP_SPI_tx(const uint8_t *buf, size_t len)
     return true;
 }
 
-/* ══════ DMA 收发 ══════ */
+/* ══════ DMA 收发 ══════
+ * LCD 和 Flash 复用 SPI1, DMA 通道共享。
+ * 每次传输前 initChannel 重置确保干净状态。 */
 
-/* ── BSP_SPI_tx_dma ──
- * SysConfig 已初始化通道 (trigger + increment)。每次传输仅更新 src/dest/size。 */
 bool BSP_SPI_tx_dma(const uint8_t *buf, uint16_t len)
 {
     if (!buf || !len) return false;
+
+    DL_DMA_Config cfg = {
+        .transferMode  = DL_DMA_SINGLE_TRANSFER_MODE,
+        .extendedMode  = DL_DMA_NORMAL_MODE,
+        .destIncrement = DL_DMA_ADDR_UNCHANGED,
+        .srcIncrement  = DL_DMA_ADDR_INCREMENT,
+        .destWidth     = DL_DMA_WIDTH_BYTE,
+        .srcWidth      = DL_DMA_WIDTH_BYTE,
+        .trigger       = SPI_LCD_INST_DMA_TRIGGER_0,
+        .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
+    };
+    DL_DMA_initChannel(DMA, DMA_SPI_LCD_TX_CHAN_ID, &cfg);
 
     DL_DMA_setSrcAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID, (uint32_t)buf);
     DL_DMA_setDestAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID,
@@ -69,8 +81,6 @@ bool BSP_SPI_tx_dma(const uint8_t *buf, uint16_t len)
     return true;
 }
 
-/* ── BSP_SPI_rx_dma ──
- * RX 需要 TX dummy 字节提供时钟。分块发送 dummy。 */
 bool BSP_SPI_rx_dma(uint8_t *buf, uint16_t len)
 {
     if (!buf || !len) return false;
@@ -82,15 +92,46 @@ bool BSP_SPI_rx_dma(uint8_t *buf, uint16_t len)
         dummy_init = true;
     }
 
+    /* RX DMA init */
+    {
+        DL_DMA_Config rx_cfg = {
+            .transferMode  = DL_DMA_SINGLE_TRANSFER_MODE,
+            .extendedMode  = DL_DMA_NORMAL_MODE,
+            .destIncrement = DL_DMA_ADDR_INCREMENT,
+            .srcIncrement  = DL_DMA_ADDR_UNCHANGED,
+            .destWidth     = DL_DMA_WIDTH_BYTE,
+            .srcWidth      = DL_DMA_WIDTH_BYTE,
+            .trigger       = SPI_LCD_INST_DMA_TRIGGER_1,
+            .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
+        };
+        DL_DMA_initChannel(DMA, DMA_SPI_LCD_RX_CHAN_ID, &rx_cfg);
+    }
+
     DL_DMA_setSrcAddr(DMA, DMA_SPI_LCD_RX_CHAN_ID,
                       (uint32_t)&SPI_LCD_INST->RXDATA);
     DL_DMA_setDestAddr(DMA, DMA_SPI_LCD_RX_CHAN_ID, (uint32_t)buf);
     DL_DMA_setTransferSize(DMA, DMA_SPI_LCD_RX_CHAN_ID, len);
     DL_DMA_enableChannel(DMA, DMA_SPI_LCD_RX_CHAN_ID);
 
+    /* TX DMA: 分块发送 dummy 字节提供时钟 */
     uint16_t rem = len;
     while (rem > 0) {
         uint16_t chunk = (rem > 256) ? 256 : rem;
+
+        {
+            DL_DMA_Config tx_cfg = {
+                .transferMode  = DL_DMA_SINGLE_TRANSFER_MODE,
+                .extendedMode  = DL_DMA_NORMAL_MODE,
+                .destIncrement = DL_DMA_ADDR_UNCHANGED,
+                .srcIncrement  = DL_DMA_ADDR_INCREMENT,
+                .destWidth     = DL_DMA_WIDTH_BYTE,
+                .srcWidth      = DL_DMA_WIDTH_BYTE,
+                .trigger       = SPI_LCD_INST_DMA_TRIGGER_0,
+                .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
+            };
+            DL_DMA_initChannel(DMA, DMA_SPI_LCD_TX_CHAN_ID, &tx_cfg);
+        }
+
         DL_DMA_setSrcAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID, (uint32_t)dummy);
         DL_DMA_setDestAddr(DMA, DMA_SPI_LCD_TX_CHAN_ID,
                            (uint32_t)&SPI_LCD_INST->TXDATA);

@@ -1,6 +1,5 @@
 /*
- * main.c — Test 7: IMU 100Hz DMA + LCD display (FreeRTOS)
- * 自带轻量 sprintf 替代 (无标准库依赖)
+ * main.c — Test 8: NCHD12 Grayscale sensor
  */
 #include <FreeRTOS.h>
 #include <task.h>
@@ -9,22 +8,24 @@
 #include "bsp_system.h"
 #include "bsp_i2c.h"
 #include "hal_spi.h"
-#include "hw_jy61p.h"
+#include "hw_nchd12.h"
 #include "hw_st7789.h"
 #include "gui_paint.h"
 
-#define YELLOW  0xFFE0
 #define CYAN    0x07FF
-#define MAGENTA 0xF81F
 
 extern const uint8_t Font8_Table[];
 
-#define FW 5   /* Font8 width  */
-#define FH 10  /* Font8 height + spacing */
+#define FW 5
+#define FH 10
 
-/* ── 轻量 sprintf 替代 ── */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    BSP_UART_tx_str("STACK: "); BSP_UART_tx_str(pcTaskName);
+    for (;;) {}
+}
 
-/* itoa: 整数转字符串, 返回长度 */
+/* itoa 轻量 */
 static int itoa_simple(int val, char *buf)
 {
     int len = 0;
@@ -33,131 +34,106 @@ static int itoa_simple(int val, char *buf)
     int start = len;
     for (int t = val; t; t /= 10) len++;
     buf[len] = 0;
-    for (int i = len - 1; i >= start; i--) {
-        buf[i] = '0' + (val % 10);
-        val /= 10;
-    }
+    for (int i = len - 1; i >= start; i--) { buf[i] = '0' + (val % 10); val /= 10; }
     return len;
 }
 
-/* ftoa: 浮点数转字符串, 保留 dec 位小数, 返回长度 */
-static int ftoa_simple(float val, int dec, char *buf)
+/* 12-bit → 二进制字符串 "000000000000" */
+static void bits12_str(uint16_t bits, char *out)
 {
-    int len = 0;
-    if (val < 0) { buf[len++] = '-'; val = -val; }
-    /* 乘以 10^dec 取整 */
-    float scale = 1.0f;
-    for (int i = 0; i < dec; i++) scale *= 10.0f;
-    int ipart = (int)val;
-    int fpart = (int)((val - (float)ipart) * scale + 0.5f);
-    /* 处理四舍五入进位 */
-    if (fpart >= (int)scale) { ipart++; fpart = 0; }
-
-    len += itoa_simple(ipart, buf + len);
-    if (dec > 0) {
-        buf[len++] = '.';
-        int div = 1;
-        for (int i = 1; i < dec; i++) div *= 10;
-        for (int i = 0; i < dec; i++) {
-            buf[len++] = '0' + ((fpart / div) % 10);
-            div /= 10;
-        }
+    for (int i = 0; i < 12; i++) {
+        out[i] = (bits & (1 << (11 - i))) ? '1' : '0';
     }
-    buf[len] = 0;
-    return len;
+    out[12] = 0;
 }
 
-/* ── Stack overflow ── */
-void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
-{
-    BSP_UART_tx_str("STACK: "); BSP_UART_tx_str(pcTaskName);
-    for (;;) {}
-}
-
-/* ── 共享数据 ── */
-static JY61P_RawAngle g_ra;
-static JY61P_RawIMU   g_ri;
-static volatile bool  g_data_ready = false;
-
-/* ── IMU Task: 100Hz DMA ── */
-static void prvImuTask(void *pvParameters)
-{
-    (void)pvParameters;
-    BSP_UART_tx_str("[IMU] started\r\n");
-    uint32_t sample = 0;
-    for (;;) {
-        JY61P_RawAngle ra;
-        JY61P_RawIMU   ri;
-        if (JY61P_readAngle(&ra) && JY61P_readIMU_dma(&ri)) {
-            g_ra = ra;
-            g_ri = ri;
-            g_data_ready = true;
-        }
-        sample++;
-        if (sample % 50 == 0) {
-            JY61P_Angle a; JY61P_convAngle(&g_ra, &a);
-            char buf[80]; int p = 0;
-            p += itoa_simple((int)sample, buf + p);
-            buf[p++] = ' '; buf[p] = 0;
-            BSP_UART_tx_str(buf);
-            BSP_UART_tx_str(" samples\r\n");
-        }
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-}
-
-/* ── 画一行数字: 擦全宽再写 (防重叠) ── */
-static void draw_val(uint16_t x, uint16_t y, const char *val,
-                     uint16_t fg, uint16_t bg)
+/* ── LCD helper ── */
+static void draw_val(uint16_t x, uint16_t y, const char *val, uint16_t fg, uint16_t bg)
 {
     ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH - 1);
     ST7789_clearRawDMA(bg, ST7789_WIDTH, FH);
     ST7789_drawStringFast(x, y, val, Font8_Table, FW, 8, fg, bg);
 }
 
+/* ── 共享数据 ── */
+static uint16_t g_bits = 0;
+static volatile bool g_ready = false;
+
+/* ── Grayscale Task: 50Hz DMA read ── */
+static void prvGrayTask(void *pvParameters)
+{
+    (void)pvParameters;
+    BSP_UART_tx_str("[GRAY] started\r\n");
+
+    uint32_t sample = 0;
+    for (;;) {
+        uint16_t bits;
+        if (NCHD12_read(&bits)) {
+            g_bits = bits;
+            g_ready = true;
+        }
+
+        if (sample % 20 == 0 && g_ready) {
+            char buf[48];
+            int p = 0;
+            p += itoa_simple((int)sample, buf + p);
+            buf[p++] = ' '; buf[p] = 0;
+            BSP_UART_tx_str(buf);
+            BSP_UART_tx_str("samples\r\n");
+        }
+
+        sample++;
+        vTaskDelay(pdMS_TO_TICKS(10));  /* 50Hz */
+    }
+}
+
 /* ── LCD Task ── */
 static void prvLcdTask(void *pvParameters)
 {
     (void)pvParameters;
-    while (!g_data_ready) vTaskDelay(10);
+    while (!g_ready) vTaskDelay(10);
 
-    /* 首帧 + 静态标签 */
+    /* 首帧 */
     ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
     ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT);
-    ST7789_drawStringFast(0, 0,  "IMU",   Font8_Table, FW, 8, GREEN,   BLACK);
-    ST7789_drawStringFast(0, FH*7, "GYRO",  Font8_Table, FW, 8, CYAN,   BLACK);
-    ST7789_drawStringFast(0, FH*13,"ACCEL", Font8_Table, FW, 8, MAGENTA, BLACK);
+    ST7789_drawStringFast(0, 0, "GRAYSCALE", Font8_Table, FW, 8, CYAN, BLACK);
     BSP_UART_tx_str("[LCD] started\r\n");
 
     for (;;) {
-        JY61P_RawAngle ra = g_ra;
-        JY61P_RawIMU   ri = g_ri;
-        JY61P_Angle a; JY61P_convAngle(&ra, &a);
+        uint16_t bits = g_bits;
 
-        char line[16];
+        /* 12 路 1/0 条状图 */
+        for (int i = 0; i < 12; i++) {
+            int x = i * 14;
+            uint16_t on = (bits & (1 << (11 - i))) ? WHITE : DARKBLUE;
+            ST7789_setWindows(x, FH*2, x + 12, FH*2 + 7);
+            ST7789_clearRawDMA(on, 13, 8);
+            /* 通道号 */
+            char ch[2]; ch[0] = (i < 9) ? ('1'+i) : 'A'-9+i; ch[1]=0;
+            ST7789_drawStringFast(x+3, FH*2, ch, Font8_Table, FW, 8,
+                                  on == WHITE ? BLACK : WHITE, on);
+        }
 
-        /* Angle: R/P/Y */
-        ftoa_simple(a.roll,  1, line); draw_val(0, FH*1, line, WHITE,  BLACK);
-        ftoa_simple(a.pitch, 1, line); draw_val(0, FH*2, line, WHITE,  BLACK);
-        ftoa_simple(a.yaw,   1, line); draw_val(0, FH*3, line, YELLOW, BLACK);
+        /* Hex + 二进制 */
+        char hex[8], bin[16];
+        int p = 0;
+        p += itoa_simple(bits >> 8, hex);
+        hex[p] = 0;
+        bits12_str(bits, bin);
 
-        /* Gyro: Gx/Gy/Gz */
-        ftoa_simple((float)(ri.gx * JY61P_GYRO_SCALE), 0, line);
-        draw_val(0, FH*8,  line, CYAN, BLACK);
-        ftoa_simple((float)(ri.gy * JY61P_GYRO_SCALE), 0, line);
-        draw_val(0, FH*9,  line, CYAN, BLACK);
-        ftoa_simple((float)(ri.gz * JY61P_GYRO_SCALE), 0, line);
-        draw_val(0, FH*10, line, CYAN, BLACK);
+        draw_val(0, FH*4, "Hex:", WHITE, BLACK);
+        draw_val(30, FH*4, hex, CYAN, BLACK);
+        draw_val(0, FH*5, bin, WHITE, BLACK);
 
-        /* Accel: Ax/Ay/Az */
-        ftoa_simple((float)(ri.ax * JY61P_ACC_SCALE), 1, line);
-        draw_val(0, FH*14, line, MAGENTA, BLACK);
-        ftoa_simple((float)(ri.ay * JY61P_ACC_SCALE), 1, line);
-        draw_val(0, FH*15, line, MAGENTA, BLACK);
-        ftoa_simple((float)(ri.az * JY61P_ACC_SCALE), 1, line);
-        draw_val(0, FH*16, line, MAGENTA, BLACK);
+        /* 通路计数 */
+        int cnt = 0;
+        for (int i = 0; i < 12; i++) if (bits & (1 << (11 - i))) cnt++;
+        char cnt_str[8];
+        itoa_simple(cnt, cnt_str);
+        draw_val(0, FH*6, "Count:", WHITE, BLACK);
+        draw_val(50, FH*6, cnt_str, YELLOW, BLACK);
 
-        vTaskDelay(pdMS_TO_TICKS(33));  /* ~30Hz */
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -168,14 +144,7 @@ int main(void)
     BSP_I2C_init();
     BSP_delay_ms(200);
 
-    BSP_UART_tx_str("\r\n=== IMU + LCD (RTOS) ===\r\n");
-
-    bool ok = false;
-    for (int i = 0; i < 10; i++) {
-        if (JY61P_init()) { ok = true; break; }
-        BSP_UART_tx_str("retry...\r\n"); BSP_delay_ms(500);
-    }
-    if (!ok) { BSP_UART_tx_str("IMU FAIL\r\n"); for (;;) {} }
+    BSP_UART_tx_str("\r\n=== Test 8: NCHD12 Grayscale ===\r\n");
 
     ST7789_init(ST7789_HORIZONTAL);
     ST7789_backLight(1);
@@ -187,8 +156,8 @@ int main(void)
     NVIC_DisableIRQ(UART_0_INST_INT_IRQN);
     NVIC_DisableIRQ(GPIOA_INT_IRQn);
 
-    if (xTaskCreate(prvImuTask, "IMU", 512, NULL, 3, NULL) != pdPASS ||
-        xTaskCreate(prvLcdTask, "LCD", 1024, NULL, 1, NULL) != pdPASS) {
+    if (xTaskCreate(prvGrayTask, "GRAY", 256, NULL, 2, NULL) != pdPASS ||
+        xTaskCreate(prvLcdTask,  "LCD",  768, NULL, 1, NULL) != pdPASS) {
         BSP_UART_tx_str("FATAL\r\n"); for (;;) {}
     }
 

@@ -30,7 +30,9 @@ void Motor_init(void)
     DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0, DL_TIMER_CC_1_INDEX);
     DL_TimerA_startCounter(PWM_MOTOR_INST);
 
-    /* 编码器引脚已由 SysConfig 统一配置, 不再在此初始化 */
+    /* 启动 10ms 定时器用于编码器转速采样 (TIMA0_IRQHandler 已在本文件定义) */
+    NVIC_EnableIRQ(TIMER_10ms_INST_INT_IRQN);
+    DL_TimerA_startCounter(TIMER_10ms_INST);
 }
 
 /* ══════ 设置 PWM (带符号: 正=前进, 负=后退) ══════ */

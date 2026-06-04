@@ -93,7 +93,8 @@ typedef enum {
 #define LGRAY 			        0XC618
 #define LGRAYBLUE               0XA651
 #define LBBLUE                  0X2B12
-
+#define YELLOW                  0xFFE0
+#define MAGENTA                 0xF81F
 
 #define IMAGE_BACKGROUND    WHITE
 #define FONT_FOREGROUND     BLACK

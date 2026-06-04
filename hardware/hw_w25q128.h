@@ -35,15 +35,13 @@ extern "C" {
 #define W25Q_SECTOR_SIZE        4096
 #define W25Q_PAGE_SIZE          256
 
-/* ── DMA 通道 (对齐 SysConfig 分配) ── */
-#define W25Q_DMA_TX_CH          1      /* SPI1 TX (原 CH0, SysConfig 改为 CH1) */
-#define W25Q_DMA_RX_CH          0      /* SPI1 RX (SysConfig 新增) */
-
-/* ── API ── */
+/* ── API ──
+ * DMA 收发统一走 BSP SPI (bsp_spi.h)。
+ * CS 控制由本模块负责 (PB6)。 */
 uint16_t HW_W25Q128_readID(void);
 bool     HW_W25Q128_read(uint8_t *buf, uint32_t addr, uint16_t len);
-bool     HW_W25Q128_write(uint8_t *buf, uint32_t addr, uint16_t len);
-bool     HW_W25Q128_eraseSector(uint8_t sector);
+bool     HW_W25Q128_write(const uint8_t *buf, uint32_t addr, uint16_t len);
+bool     HW_W25Q128_eraseSector(uint16_t sector);
 bool     HW_W25Q128_eraseChip(void);
 uint8_t  HW_W25Q128_readSR1(void);
 

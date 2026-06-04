@@ -1,4 +1,4 @@
-set(LIB_SOURCES gui_paint.c fonts/font8.c fonts/font12.c fonts/font16.c fonts/font20.c fonts/font24.c)
+set(LIB_SOURCES gui_paint.c util.c fonts/font8.c fonts/font12.c fonts/font16.c fonts/font20.c fonts/font24.c)
 add_library(lib_gui STATIC ${LIB_SOURCES})
 
 target_include_directories(lib_gui PUBLIC

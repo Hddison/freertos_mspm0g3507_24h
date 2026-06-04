@@ -82,6 +82,22 @@ bool JY61P_readIMU(JY61P_RawIMU *raw)
         && _read(JY61P_REG_GZ, &raw->gz);
 }
 
+/* 一次 DMA 读 12 字节: AX(0x34)~GZ(0x39) 连续 */
+bool JY61P_readIMU_dma(JY61P_RawIMU *raw)
+{
+    if (!raw) return false;
+    uint8_t buf[12];
+    if (!BSP_I2C_read_dma(JY61P_ADDR, JY61P_REG_AX, buf, 12))
+        return false;
+    raw->ax = (int16_t)((uint16_t)buf[0]  | ((uint16_t)buf[1]  << 8));
+    raw->ay = (int16_t)((uint16_t)buf[2]  | ((uint16_t)buf[3]  << 8));
+    raw->az = (int16_t)((uint16_t)buf[4]  | ((uint16_t)buf[5]  << 8));
+    raw->gx = (int16_t)((uint16_t)buf[6]  | ((uint16_t)buf[7]  << 8));
+    raw->gy = (int16_t)((uint16_t)buf[8]  | ((uint16_t)buf[9]  << 8));
+    raw->gz = (int16_t)((uint16_t)buf[10] | ((uint16_t)buf[11] << 8));
+    return true;
+}
+
 /* ── 累积偏航 (解卷绕) ── */
 
 static int32_t total_yaw_raw;   /* 累积原始值, 范围无限 */

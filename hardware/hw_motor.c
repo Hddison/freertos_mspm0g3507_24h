@@ -13,8 +13,8 @@
 static volatile int32_t g_enc1;
 static volatile int32_t g_enc2;
 
-#define ENC1_MASK   (GPIO_CAP_MOTOR1_C1_PIN | GPIO_CAP_MOTOR1_C0_PIN)  /* PA26+PA27 */
-#define ENC2_MASK   (GPIO_CAP_MOTOR2_C0_PIN | GPIO_CAP_MOTOR2_C1_PIN)  /* PA28+PA31 */
+#define ENC1_MASK   (GPIO_ENC_PIN_E1A_PIN | GPIO_ENC_PIN_E1B_PIN)  /* E1A=PA27 + E1B=PA26 */
+#define ENC2_MASK   (GPIO_ENC_PIN_E2A_PIN | GPIO_ENC_PIN_E2B_PIN)  /* E2A=PA28 + E2B=PA31 */
 
 /* ══════ 初始化 ══════ */
 
@@ -30,32 +30,9 @@ void Motor_init(void)
     DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0, DL_TIMER_CC_1_INDEX);
     DL_TimerA_startCounter(PWM_MOTOR_INST);
 
-    /* 编码器引脚: GPIO 输入 + 上拉 + 双边沿中断 */
-    DL_GPIO_initDigitalInputFeatures(
-        GPIO_CAP_MOTOR1_C0_IOMUX, DL_GPIO_INVERSION_DISABLE,
-        DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE,
-        DL_GPIO_WAKEUP_DISABLE);
-    DL_GPIO_initDigitalInputFeatures(
-        GPIO_CAP_MOTOR1_C1_IOMUX, DL_GPIO_INVERSION_DISABLE,
-        DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE,
-        DL_GPIO_WAKEUP_DISABLE);
-    DL_GPIO_initDigitalInputFeatures(
-        GPIO_CAP_MOTOR2_C0_IOMUX, DL_GPIO_INVERSION_DISABLE,
-        DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE,
-        DL_GPIO_WAKEUP_DISABLE);
-    DL_GPIO_initDigitalInputFeatures(
-        GPIO_CAP_MOTOR2_C1_IOMUX, DL_GPIO_INVERSION_DISABLE,
-        DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE,
-        DL_GPIO_WAKEUP_DISABLE);
-
-    /* 配置双边沿触发 (PA26-31 在 UPPER polarity 寄存器) */
-    /* 仅上升沿 (2x 解码): 方向判断简单可靠 */
-    DL_GPIO_setUpperPinsPolarity(GPIOA,
-        DL_GPIO_PIN_26_EDGE_RISE | DL_GPIO_PIN_27_EDGE_RISE |
-        DL_GPIO_PIN_28_EDGE_RISE | DL_GPIO_PIN_31_EDGE_RISE);
-
-    DL_GPIO_enableInterrupt(GPIOA, ENC1_MASK | ENC2_MASK);
-    NVIC_EnableIRQ(GPIOA_INT_IRQn);
+    /* 启动 10ms 定时器用于编码器转速采样 (TIMA0_IRQHandler 已在本文件定义) */
+    NVIC_EnableIRQ(TIMER_10ms_INST_INT_IRQN);
+    DL_TimerA_startCounter(TIMER_10ms_INST);
 }
 
 /* ══════ 设置 PWM (带符号: 正=前进, 负=后退) ══════ */
@@ -97,36 +74,61 @@ float Motor_enc1Dist(void) { return (float)g_enc1 * DIST_PER_COUNT; }
 float Motor_enc2Dist(void) { return (float)g_enc2 * DIST_PER_COUNT; }
 void  Motor_encReset(void) { g_enc1 = 0; g_enc2 = 0; }
 
-/* ══════ GPIO 编码器 ISR (GROUP1: PA26-31 双边沿) ══════ */
+/* ══════ 10ms 定时器 ISR: 编码器转速采样 ══════ */
+
+volatile int32_t g_enc1_speed;
+volatile int32_t g_enc2_speed;
+
+void TIMA0_IRQHandler(void)
+{
+    static int32_t prev1, prev2;
+    static bool first = true;
+
+    DL_TimerA_clearInterruptStatus(TIMER_10ms_INST,
+        DL_TIMER_INTERRUPT_ZERO_EVENT);
+
+    int32_t e1 = g_enc1;
+    int32_t e2 = g_enc2;
+
+    if (!first) {
+        g_enc1_speed = e1 - prev1;
+        g_enc2_speed = e2 - prev2;
+    }
+    first = false;
+    prev1 = e1;
+    prev2 = e2;
+}
+
+/* ══════ 编码器 ISR (GROUP1: PA26-31 双边沿) ══════ */
 
 void GROUP1_IRQHandler(void)
 {
     uint32_t ris = DL_GPIO_getEnabledInterruptStatus(GPIOA, ENC1_MASK | ENC2_MASK);
 
-    if (ris & GPIO_CAP_MOTOR1_C1_PIN) {  /* PA27 = Enc1 A↑ */
-        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_CAP_MOTOR1_C1_PIN);
-        if (DL_GPIO_readPins(GPIOA, GPIO_CAP_MOTOR1_C0_PIN))
+    if (ris & GPIO_ENC_PIN_E1A_PIN) {  /* PA27 = Enc1 A↑ */
+        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_ENC_PIN_E1A_PIN);
+        if (DL_GPIO_readPins(GPIOA, GPIO_ENC_PIN_E1B_PIN))
             g_enc1--;  /* A↑, B=1 → 反转 */
         else
             g_enc1++;  /* A↑, B=0 → 正转 */
     }
-    if (ris & GPIO_CAP_MOTOR1_C0_PIN) {  /* PA26 = Enc1 B↑ */
-        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_CAP_MOTOR1_C0_PIN);
-        if (DL_GPIO_readPins(GPIOA, GPIO_CAP_MOTOR1_C1_PIN))
+    if (ris & GPIO_ENC_PIN_E1B_PIN) {  /* PA26 = Enc1 B↑ */
+        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_ENC_PIN_E1B_PIN);
+        if (DL_GPIO_readPins(GPIOA, GPIO_ENC_PIN_E1A_PIN))
             g_enc1++;  /* B↑, A=1 → 正转 */
         else
             g_enc1--;  /* B↑, A=0 → 反转 */
     }
-    if (ris & GPIO_CAP_MOTOR2_C0_PIN) {  /* PA28 = Enc2 A↑ (左轮, 反向) */
-        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_CAP_MOTOR2_C0_PIN);
-        if (DL_GPIO_readPins(GPIOA, GPIO_CAP_MOTOR2_C1_PIN))
+    if (ris & GPIO_ENC_PIN_E2A_PIN) {  /* PA28 = Enc2 A↑ (左轮, 反向) */
+        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_ENC_PIN_E2A_PIN);
+        if (DL_GPIO_readPins(GPIOA, GPIO_ENC_PIN_E2B_PIN))
             g_enc2++;  /* A↑, B=1 → 正转 */
         else
             g_enc2--;  /* A↑, B=0 → 反转 */
     }
-    if (ris & GPIO_CAP_MOTOR2_C1_PIN) {  /* PA31 = Enc2 B↑ (左轮, 反向) */
-        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_CAP_MOTOR2_C1_PIN);
-        if (DL_GPIO_readPins(GPIOA, GPIO_CAP_MOTOR2_C0_PIN))
+    if (ris & GPIO_ENC_PIN_E2B_PIN) {  /* PA31 = Enc2 B↑ (左轮, 反向) */
+        DL_GPIO_clearInterruptStatus(GPIOA, GPIO_ENC_PIN_E2B_PIN);
+        if (DL_GPIO_readPins(GPIOA, GPIO_ENC_PIN_E2A_PIN))
             g_enc2--;  /* B↑, A=1 → 反转 */
         else
             g_enc2++;  /* B↑, A=0 → 正转 */

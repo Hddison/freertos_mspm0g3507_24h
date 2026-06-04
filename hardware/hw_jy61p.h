@@ -68,6 +68,9 @@ bool JY61P_readIICAddr(uint8_t *addr);
 bool JY61P_readAngle(JY61P_RawAngle *raw);
 bool JY61P_readIMU(JY61P_RawIMU *raw);
 
+/* 一次 DMA 读 12 字节: AX(0x34)~GZ(0x39) 连续, 全 6 轴 */
+bool JY61P_readIMU_dma(JY61P_RawIMU *raw);
+
 /* 累积偏航: 自动解卷绕 (±180° → 连续角度) */
 float JY61P_getTotalYaw(void);           /* 返回累积角度 (°) */
 void  JY61P_updateTotalYaw(int16_t raw); /* 用原始值更新累积 */

@@ -23,4 +23,8 @@ float Motor_enc1Dist(void);                      /* 编码器 1 距离 (mm) */
 float Motor_enc2Dist(void);                      /* 编码器 2 距离 (mm) */
 void   Motor_encReset(void);                     /* 编码器清零 */
 
+/* 转速 (counts/10ms, TIMA0 ISR 更新) */
+extern volatile int32_t g_enc1_speed;
+extern volatile int32_t g_enc2_speed;
+
 #endif

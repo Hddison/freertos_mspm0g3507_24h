@@ -109,6 +109,14 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 
+/* Defines for TIMER_10ms */
+#define TIMER_10ms_INST                                                  (TIMA0)
+#define TIMER_10ms_INST_IRQHandler                              TIMA0_IRQHandler
+#define TIMER_10ms_INST_INT_IRQN                                (TIMA0_INT_IRQn)
+#define TIMER_10ms_INST_LOAD_VALUE                                       (9999U)
+
+
+
 
 /* Defines for I2C_0 */
 #define I2C_0_INST                                                          I2C0
@@ -307,6 +315,7 @@ void SYSCFG_DL_SYSCTL_init(void);
 
 bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 void SYSCFG_DL_PWM_MOTOR_init(void);
+void SYSCFG_DL_TIMER_10ms_init(void);
 void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_I2C_NCHD12_init(void);
 void SYSCFG_DL_UART_0_init(void);

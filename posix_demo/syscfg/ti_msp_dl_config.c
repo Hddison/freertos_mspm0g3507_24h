@@ -41,6 +41,7 @@
 #include "ti_msp_dl_config.h"
 
 DL_TimerA_backupConfig gPWM_MOTORBackup;
+DL_TimerA_backupConfig gTIMER_10msBackup;
 DL_SPI_backupConfig gSPI_LCDBackup;
 
 /*
@@ -54,6 +55,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     /* Module-Specific Initializations*/
     SYSCFG_DL_SYSCTL_init();
     SYSCFG_DL_PWM_MOTOR_init();
+    SYSCFG_DL_TIMER_10ms_init();
     SYSCFG_DL_I2C_0_init();
     SYSCFG_DL_I2C_NCHD12_init();
     SYSCFG_DL_UART_0_init();
@@ -61,6 +63,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_DMA_init();
     /* Ensure backup structures have no valid state */
 	gPWM_MOTORBackup.backupRdy 	= false;
+	gTIMER_10msBackup.backupRdy 	= false;
 
 	gSPI_LCDBackup.backupRdy 	= false;
 
@@ -74,6 +77,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_saveConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_saveConfiguration(PWM_MOTOR_INST, &gPWM_MOTORBackup);
+	retStatus &= DL_TimerA_saveConfiguration(TIMER_10ms_INST, &gTIMER_10msBackup);
 	retStatus &= DL_SPI_saveConfiguration(SPI_LCD_INST, &gSPI_LCDBackup);
 
     return retStatus;
@@ -85,6 +89,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_restoreConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_restoreConfiguration(PWM_MOTOR_INST, &gPWM_MOTORBackup, false);
+	retStatus &= DL_TimerA_restoreConfiguration(TIMER_10ms_INST, &gTIMER_10msBackup, false);
 	retStatus &= DL_SPI_restoreConfiguration(SPI_LCD_INST, &gSPI_LCDBackup);
 
     return retStatus;
@@ -95,6 +100,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_GPIO_reset(GPIOA);
     DL_GPIO_reset(GPIOB);
     DL_TimerA_reset(PWM_MOTOR_INST);
+    DL_TimerA_reset(TIMER_10ms_INST);
     DL_I2C_reset(I2C_0_INST);
     DL_I2C_reset(I2C_NCHD12_INST);
     DL_UART_Main_reset(UART_0_INST);
@@ -104,6 +110,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
     DL_TimerA_enablePower(PWM_MOTOR_INST);
+    DL_TimerA_enablePower(TIMER_10ms_INST);
     DL_I2C_enablePower(I2C_0_INST);
     DL_I2C_enablePower(I2C_NCHD12_INST);
     DL_UART_Main_enablePower(UART_0_INST);
@@ -413,6 +420,46 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_MOTOR_init(void) {
 
     
     DL_TimerA_setCCPDirection(PWM_MOTOR_INST , DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT );
+
+
+}
+
+
+
+/*
+ * Timer clock configuration to be sourced by BUSCLK /  (10000000 Hz)
+ * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
+ *   1000000 Hz = 10000000 Hz / (8 * (9 + 1))
+ */
+static const DL_TimerA_ClockConfig gTIMER_10msClockConfig = {
+    .clockSel    = DL_TIMER_CLOCK_BUSCLK,
+    .divideRatio = DL_TIMER_CLOCK_DIVIDE_8,
+    .prescale    = 9U,
+};
+
+/*
+ * Timer load value (where the counter starts from) is calculated as (timerPeriod * timerClockFreq) - 1
+ * TIMER_10ms_INST_LOAD_VALUE = (10 ms * 1000000 Hz) - 1
+ */
+static const DL_TimerA_TimerConfig gTIMER_10msTimerConfig = {
+    .period     = TIMER_10ms_INST_LOAD_VALUE,
+    .timerMode  = DL_TIMER_TIMER_MODE_PERIODIC,
+    .startTimer = DL_TIMER_STOP,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_TIMER_10ms_init(void) {
+
+    DL_TimerA_setClockConfig(TIMER_10ms_INST,
+        (DL_TimerA_ClockConfig *) &gTIMER_10msClockConfig);
+
+    DL_TimerA_initTimerMode(TIMER_10ms_INST,
+        (DL_TimerA_TimerConfig *) &gTIMER_10msTimerConfig);
+    DL_TimerA_enableInterrupt(TIMER_10ms_INST , DL_TIMERA_INTERRUPT_ZERO_EVENT);
+	NVIC_SetPriority(TIMER_10ms_INST_INT_IRQN, 1);
+    DL_TimerA_enableClock(TIMER_10ms_INST);
+
+
+
 
 
 }

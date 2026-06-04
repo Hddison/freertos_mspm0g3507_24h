@@ -26,6 +26,8 @@ const PWM1          = PWM.addInstance();
 const SPI           = scripting.addModule("/ti/driverlib/SPI", {}, false);
 const SPI1          = SPI.addInstance();
 const SYSCTL        = scripting.addModule("/ti/driverlib/SYSCTL");
+const TIMER         = scripting.addModule("/ti/driverlib/TIMER", {}, false);
+const TIMER1        = TIMER.addInstance();
 const UART          = scripting.addModule("/ti/driverlib/UART", {}, false);
 const UART1         = UART.addInstance();
 const ProjectConfig = scripting.addModule("/ti/project_config/ProjectConfig");
@@ -254,6 +256,14 @@ SPI1.DMA_CHANNEL_EVENT1.$name           = "DMA_SPI_LCD_RX";
 
 SYSCTL.clockTreeEn = true;
 
+TIMER1.timerClkDiv       = 8;
+TIMER1.timerClkPrescale  = 10;
+TIMER1.timerPeriod       = "10 ms";
+TIMER1.$name             = "TIMER_10ms";
+TIMER1.timerMode         = "PERIODIC";
+TIMER1.interruptPriority = "1";
+TIMER1.interrupts        = ["ZERO"];
+
 UART1.$name                      = "UART_0";
 UART1.targetBaudRate             = 115200;
 UART1.enabledInterrupts          = ["RX"];
@@ -297,6 +307,7 @@ I2C2.DMA_CHANNEL_EVENT2.peripheral.$suggestSolution = "DMA_CH4";
 SPI1.peripheral.$suggestSolution                    = "SPI1";
 SPI1.DMA_CHANNEL_EVENT2.peripheral.$suggestSolution = "DMA_CH3";
 SPI1.DMA_CHANNEL_EVENT1.peripheral.$suggestSolution = "DMA_CH2";
+TIMER1.peripheral.$suggestSolution                  = "TIMA0";
 UART1.peripheral.$suggestSolution                   = "UART0";
 UART1.DMA_CHANNEL_RX.peripheral.$suggestSolution    = "DMA_CH1";
 UART1.DMA_CHANNEL_TX.peripheral.$suggestSolution    = "DMA_CH0";

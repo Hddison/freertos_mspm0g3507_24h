@@ -72,7 +72,32 @@ float Motor_enc1Dist(void) { return (float)g_enc1 * DIST_PER_COUNT; }
 float Motor_enc2Dist(void) { return (float)g_enc2 * DIST_PER_COUNT; }
 void  Motor_encReset(void) { g_enc1 = 0; g_enc2 = 0; }
 
-/* ══════ GPIO 编码器 ISR (GROUP1: PA26-31 双边沿) ══════ */
+/* ══════ 10ms 定时器 ISR: 编码器转速采样 ══════ */
+
+volatile int32_t g_enc1_speed;
+volatile int32_t g_enc2_speed;
+
+void TIMA0_IRQHandler(void)
+{
+    static int32_t prev1, prev2;
+    static bool first = true;
+
+    DL_TimerA_clearInterruptStatus(TIMER_10ms_INST,
+        DL_TIMER_INTERRUPT_ZERO_EVENT);
+
+    int32_t e1 = g_enc1;
+    int32_t e2 = g_enc2;
+
+    if (!first) {
+        g_enc1_speed = e1 - prev1;
+        g_enc2_speed = e2 - prev2;
+    }
+    first = false;
+    prev1 = e1;
+    prev2 = e2;
+}
+
+/* ══════ 编码器 ISR (GROUP1: PA26-31 双边沿) ══════ */
 
 void GROUP1_IRQHandler(void)
 {

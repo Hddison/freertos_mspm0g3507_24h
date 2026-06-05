@@ -6,6 +6,7 @@
 #include "app_control.h"
 #include "app_config.h"
 #include "app_kalman.h"
+#include "app_motor.h"
 #include "hw_motor.h"
 
 #include <math.h>    /* sqrtf, sinf, cosf, atan2f, fabsf */
@@ -26,24 +27,6 @@ float g_target_speed = DEFAULT_TARGET_SPEED;
 
 competition_t g_comp;
 volatile int g_ctrl_mode = CTRL_IDLE;
-
-/* ══════════ 辅助函数 ══════════ */
-
-/* 角度归一化到 [-PI, +PI] */
-static float wrap_angle(float a)
-{
-    while (a >  3.14159265359f) a -= 2.0f * 3.14159265359f;
-    while (a < -3.14159265359f) a += 2.0f * 3.14159265359f;
-    return a;
-}
-
-/* 整数钳位 */
-static int16_t clamp_i16(float val, int16_t lo, int16_t hi)
-{
-    if (val > (float)hi) return hi;
-    if (val < (float)lo) return lo;
-    return (int16_t)val;
-}
 
 /* ══════════ 路径段表 ══════════ */
 
@@ -104,10 +87,19 @@ static void advance_segment(void)
     const path_segment_t *seg = &g_comp.segments[g_comp.active_segment];
     g_comp.mode           = seg->mode;
     g_ctrl_mode            = seg->mode;
-    g_comp.segment_start_tick = 0;   /* 将在 control_run 中设置 */
-    g_comp.segment_start_dist = 0;
+    g_comp.segment_start_tick = 0;
+    g_comp.segment_start_dist = (Motor_enc1Dist()+Motor_enc2Dist())*0.5f;
     g_comp.line_lost_cnt  = 0;
     g_comp.line_detected  = false;
+
+    /* CTRL_POSITION: 入口锁死目标航向 + 段距离 (不依赖 Kalman 实时位置) */
+    if (seg->mode == CTRL_POSITION) {
+        extern volatile float g_kf_x, g_kf_y;
+        float dx = seg->target_x - g_kf_x;
+        float dy = seg->target_y - g_kf_y;
+        g_comp.segment_target_hdg = atan2f(dy, dx) * 57.29578f;  /* rad→° */
+        g_comp.segment_distance   = sqrtf(dx*dx + dy*dy);
+    }
 
     if (seg->mode == CTRL_COMPLETE) {
         Motor_set(0, 0);
@@ -119,8 +111,6 @@ static void advance_segment(void)
 void control_init(void)
 {
     /* PID 实例初始化 (默认值, flash_config 加载后会覆盖) */
-    pid_init(&g_pid_speed,   DEFAULT_SPEED_KP,   DEFAULT_SPEED_KI,
-             DEFAULT_SPEED_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
     pid_init(&g_pid_speed_l, DEFAULT_SPEED_L_KP, DEFAULT_SPEED_L_KI,
              DEFAULT_SPEED_L_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
     pid_init(&g_pid_speed_r, DEFAULT_SPEED_R_KP, DEFAULT_SPEED_R_KI,
@@ -142,7 +132,6 @@ void control_init(void)
 /* 从 Flash 配置加载 PID 参数 */
 void control_load_from_flash(const flash_config_t *cfg)
 {
-    pid_set_gains(&g_pid_speed,   cfg->speed_kp,  cfg->speed_ki,  cfg->speed_kd);
     pid_set_gains(&g_pid_speed_l, cfg->speed_l_kp, cfg->speed_l_ki, cfg->speed_l_kd);
     pid_set_gains(&g_pid_speed_r, cfg->speed_r_kp, cfg->speed_r_ki, cfg->speed_r_kd);
     pid_set_gains(&g_pid_pos,     cfg->pos_kp,    0.0f,            0.0f);
@@ -194,9 +183,16 @@ void control_start_task(uint8_t task_id)
     g_comp.mode = seg->mode;
     g_ctrl_mode = seg->mode;
     g_comp.segment_start_tick = 0;
+    g_comp.segment_start_dist = (Motor_enc1Dist()+Motor_enc2Dist())*0.5f;
+    if (seg->mode == CTRL_POSITION) {
+        extern volatile float g_kf_x, g_kf_y;
+        float dx = seg->target_x - g_kf_x;
+        float dy = seg->target_y - g_kf_y;
+        g_comp.segment_target_hdg = atan2f(dy, dx) * 57.29578f;  /* rad→° */
+        g_comp.segment_distance   = sqrtf(dx*dx + dy*dy);
+    }
 
     /* 重置 PID 积分 */
-    pid_reset(&g_pid_speed);
     pid_reset(&g_pid_speed_l);
     pid_reset(&g_pid_speed_r);
     pid_reset(&g_pid_pos);
@@ -213,8 +209,10 @@ void control_estop(void)
 
 /* ══════════ 控制循环 (每 10ms) ══════════ */
 
-void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
+void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
+                 float yaw_deg)
 {
+    (void)kf;  /* 航向用 yaw_deg, 不用 kf->theta */
     /* 更新计时 */
     g_comp.elapsed_ms += 10;
 
@@ -224,52 +222,36 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
 
     /* ── 位置闭环: 目标点导航 ── */
     case CTRL_POSITION: {
-        float dx = seg->target_x - kf->x;
-        float dy = seg->target_y - kf->y;
-        float dist = sqrtf(dx * dx + dy * dy);
-        float target_heading = atan2f(dy, dx);
-        float heading_err = wrap_angle(target_heading - kf->theta);
+        /* 航向误差 (°), 和 Heading Hold 一样 */
+        float heading_err = g_comp.segment_target_hdg - yaw_deg;
+        while (heading_err >  180.0f) heading_err -= 360.0f;
+        while (heading_err < -180.0f) heading_err += 360.0f;
 
-        /* 速度曲线: 远距满速, 近距减速 */
+        /* 距离: 编码器已走 → 剩余 */
+        float enc_avg = (Motor_enc1Dist() + Motor_enc2Dist()) * 0.5f;
+        float traveled = enc_avg - g_comp.segment_start_dist;
+        float remain   = g_comp.segment_distance - traveled;
+
+        /* 速度曲线 */
         float target_spd;
-        if (dist > SPEED_RAMP_DIST) {
-            target_spd = g_target_speed;
-        } else if (dist < VERTEX_ARRIVAL_DIST) {
-            target_spd = 0.0f;
-        } else {
-            target_spd = g_target_speed * (dist / SPEED_RAMP_DIST);
-        }
-        if (target_spd < MIN_CRUISE_SPEED && dist > VERTEX_ARRIVAL_DIST)
+        if (remain > SPEED_RAMP_DIST)       target_spd = g_target_speed;
+        else if (remain < VERTEX_ARRIVAL_DIST) target_spd = 0.0f;
+        else                                target_spd = g_target_speed * remain / SPEED_RAMP_DIST;
+        if (target_spd < MIN_CRUISE_SPEED && remain > VERTEX_ARRIVAL_DIST)
             target_spd = MIN_CRUISE_SPEED;
 
-        /* 速度 PID (内环) */
+        /* 航向 PID → 速度差 */
         float dt = 0.01f;
-        float base_pwm = pid_compute(&g_pid_speed, target_spd, kf->v, dt);
+        float speed_diff = pid_compute(&g_pid_heading, 0.0f, heading_err, dt);
+        if (speed_diff >  500.0f) speed_diff =  500.0f;
+        if (speed_diff < -500.0f) speed_diff = -500.0f;
 
-        /* Pure pursuit 曲率: κ = 2·sin(Δθ)/d */
-        float curvature = 2.0f * sinf(heading_err) / fmaxf(dist, 1.0f);
+        motor_speed_apply(target_spd + speed_diff,
+                          target_spd - speed_diff, dt, NULL, NULL);
 
-        /* 曲率→差速 + 航向 PD 补偿 */
-        float steer_pwm = curvature * kf->v * CURVATURE_GAIN;
-
-        /* 航向 PID (辅助, 抑制振荡) */
-        float heading_correction = pid_compute(&g_pid_heading, 0.0f,
-                                               heading_err, dt);
-        steer_pwm += heading_correction;
-
-        /* 差分输出 */
-        int16_t left  = clamp_i16(base_pwm - steer_pwm, -PWM_MAX, PWM_MAX);
-        int16_t right = clamp_i16(base_pwm + steer_pwm, -PWM_MAX, PWM_MAX);
-
-        /* 死区 */
-        if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
-        if (abs(right) < PWM_DEAD_ZONE) right = 0;
-
-        Motor_set(right, -left); /* A=右, B=左(dir=-1) */
-
-        /* 到点判定 */
-        if (dist < VERTEX_ARRIVAL_DIST) {
-            advance_segment();  /* → VERTEX_PAUSE */
+        /* 到点: 编码器走够 */
+        if (remain <= 0.0f) {
+            advance_segment();
         }
         break;
     }
@@ -281,22 +263,17 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
             g_comp.line_detected = true;
         }
 
-        float steer_pwm = 0.0f;
+        /* 灰度 PID → 速度差 (mm/s) */
+        float speed_diff = 0.0f;
         if (g_comp.line_detected) {
-            /* 灰度 PID (对质心偏差做闭环) */
-            steer_pwm = pid_compute(&g_pid_steer, 0.0f, line_position, 0.01f);
+            speed_diff = pid_compute(&g_pid_steer, 0.0f, -line_position, 0.01f);
+            if (speed_diff >  500.0f) speed_diff =  500.0f;
+            if (speed_diff < -500.0f) speed_diff = -500.0f;
         }
 
-        /* 速度 PID */
-        float base_pwm = pid_compute(&g_pid_speed, g_target_speed, kf->v, 0.01f);
-
-        int16_t left  = clamp_i16(base_pwm - steer_pwm, -PWM_MAX, PWM_MAX);
-        int16_t right = clamp_i16(base_pwm + steer_pwm, -PWM_MAX, PWM_MAX);
-
-        if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
-        if (abs(right) < PWM_DEAD_ZONE) right = 0;
-
-        Motor_set(right, -left); /* A=右, B=左(dir=-1) */
+        /* per-motor 速度控制 */
+        motor_speed_apply(g_target_speed + speed_diff,
+                          g_target_speed - speed_diff, 0.01f, NULL, NULL);
 
         /* 出线检测: 连续丢失 N 个周期 → 切换到 POSITION 到达目标 */
         if (g_comp.line_detected) {
@@ -335,7 +312,6 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
         /* 800ms 后前进到下一段 */
         if ((g_comp.elapsed_ms - g_comp.vertex_pause_start) >= VERTEX_PAUSE_MS) {
             g_comp.vertex_pause_start = 0;
-            pid_reset(&g_pid_speed);
             pid_reset(&g_pid_heading);
             advance_segment();
         }

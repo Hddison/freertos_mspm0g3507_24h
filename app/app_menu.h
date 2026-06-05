@@ -35,7 +35,9 @@ typedef enum {
     SCREEN_DEBUG_SLIP,
     SCREEN_DEBUG_HEADING,
     SCREEN_DEBUG_SPEED,
-    SCREEN_DEBUG_MOTOR_ID
+    SCREEN_DEBUG_MOTOR_ID,
+    SCREEN_DEBUG_POS_HOLD,
+    SCREEN_DEBUG_LINE_TRACK
 } screen_type_t;
 
 /* ── 菜单项类型 ── */

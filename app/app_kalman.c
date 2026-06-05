@@ -127,7 +127,7 @@ static void kalman_scalar_update(kalman5_t *kf, const float h[5],
 /* ══════════ 预测步骤 ══════════ */
 
 void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
-                     float dt, bool slip_detected)
+                     float dt, bool slip_detected, float ax_body)
 {
     /* 防止 dt=0 */
     if (dt < 1e-6f) dt = 0.01f;
@@ -137,26 +137,21 @@ void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
     float sin_th = sinf(mid_theta);
     float cos_th = cosf(mid_theta);
 
+    /* 位置: 编码器里程计 (硬核, 不受滑差影响) */
     kf->x     += delta_dist * cos_th;
     kf->y     += delta_dist * sin_th;
     kf->theta += delta_theta;
-    kf->v      = delta_dist / dt;      /* 直接用编码器更新速度 */
-    kf->omega  = delta_theta / dt;     /* 直接用陀螺仪更新角速度 */
+    (void)ax_body;  /* 加速度计仅用于滑差检测和显示, 不参与 EKF 预测 */
+    kf->v      = delta_dist / dt;
+    kf->omega  = delta_theta / dt;
     kf->theta  = kalman5_wrap_angle(kf->theta);
 
     /* ── Jacobian F (5×5) ── */
-    /* F = [[1, 0, -Δd·sin(θ+Δθ/2),  0, 0],
-     *      [0, 1,  Δd·cos(θ+Δθ/2),  0, 0],
-     *      [0, 0,  1,                0, 0],
-     *      [0, 0,  0,                0, 0],
-     *      [0, 0,  0,                0, 0]]
-     */
     float F02 = -delta_dist * sin_th;
     float F12 =  delta_dist * cos_th;
 
     /* ── 计算 P_pred = F * P * F^T + Q ── */
-    /* 先计算 FP = F * P 的乘积 (5×5) */
-    float FP[5][5];  /* 展开的完整矩阵, 便于 M0+ 访问 */
+    float FP[5][5];
 
     /* FP 第 0 行: F[0] = [1,0,F02,0,0] */
     for (int j = 0; j < KF_STATE_DIM; j++) {
@@ -170,8 +165,7 @@ void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
     for (int j = 0; j < KF_STATE_DIM; j++) {
         FP[2][j] = p_get(kf->P, 2, j);
     }
-    /* FP 第 3 行: F[3] = [0,0,0,0,0] → 全零 */
-    /* FP 第 4 行: F[4] = [0,0,0,0,0] → 全零 */
+    /* FP 第 3,4 行: 全零 */
     for (int j = 0; j < KF_STATE_DIM; j++) {
         FP[3][j] = 0.0f;
         FP[4][j] = 0.0f;
@@ -181,7 +175,6 @@ void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
     float P_new[KF_P_SIZE];
     for (int i = 0; i < KF_STATE_DIM; i++) {
         for (int j = i; j < KF_STATE_DIM; j++) {
-            /* P_new[i,j] = Σ_k FP[i,k] * F[j,k] */
             float sum = 0.0f;
             /* k=0: F[j,0] = (j==0 ? 1 : 0) */
             if (j == 0) sum += FP[i][0] * 1.0f;
@@ -198,7 +191,9 @@ void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
     }
 
     /* ── 加过程噪声 Q (对角) ── */
-    float q_vel = kf->Q_vel * kf->Q_vel_scale;  /* 打滑时放大 */
+    /* 打滑时放大 Q_vel, 降低对速度预测的置信度 */
+    float q_vel_scale = slip_detected ? SLIP_Q_VEL_SCALE : 1.0f;
+    float q_vel = kf->Q_vel * q_vel_scale;
     P_new[P_IDX(0, 0)] += kf->Q_pos  * dt;
     P_new[P_IDX(1, 1)] += kf->Q_pos  * dt;
     P_new[P_IDX(2, 2)] += kf->Q_head * dt;

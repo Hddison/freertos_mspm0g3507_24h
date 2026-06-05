@@ -73,9 +73,10 @@ void kalman5_init(kalman5_t *kf, float init_x, float init_y,
  *   delta_theta: 陀螺仪角增量 (rad/10ms), = gyro_z * dt
  *   dt:          时间步长 (s), 通常 0.01
  *   slip_detected: true=编码器可能打滑, 增大速度过程噪声
+ *   ax_body:     车体前向加速度 (mm/s²), 来自 JY61P 坐标变换后
  */
 void kalman5_predict(kalman5_t *kf, float delta_dist, float delta_theta,
-                     float dt, bool slip_detected);
+                     float dt, bool slip_detected, float ax_body);
 
 /* ── 测量更新: 灰度横向位置 (弧线段, 每 10ms 有黑线时调用) ──
  *   cross_track: 横向偏差 (mm), 正值=偏右, 从灰度质心 line_position 换算

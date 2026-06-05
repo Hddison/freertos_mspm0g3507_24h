@@ -9,6 +9,7 @@ add_executable(posix_demo
     ${CMAKE_SOURCE_DIR}/app/app_pid.c
     ${CMAKE_SOURCE_DIR}/app/app_kalman.c
     ${CMAKE_SOURCE_DIR}/app/app_menu.c
+    ${CMAKE_SOURCE_DIR}/app/app_motor.c
     ${CMAKE_SOURCE_DIR}/app/app_control.c
     ${CMAKE_SOURCE_DIR}/app/app_flash.c
     ${CMAKE_SOURCE_DIR}/app/app_slip.c

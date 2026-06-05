@@ -89,7 +89,8 @@ void vTaskControl(void *pvParameters)
                 taskEXIT_CRITICAL();
 
                 /* 运行控制循环 */
-                control_run(&local_kf, line_pos, gray_raw);
+                control_run(&local_kf, line_pos, gray_raw,
+                            g_sensor_data.total_yaw); /* 解卷绕连续航向 (°) */
 
                 /* 竞赛完成 → 回到阻塞态等新指令 */
                 if (g_comp.mode == CTRL_COMPLETE) break;

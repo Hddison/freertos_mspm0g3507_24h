@@ -132,11 +132,18 @@ void JY61P_updateTotalYaw(int16_t raw)
 
 bool JY61P_zero_yaw(void)
 {
-    return _write(JY61P_REG_KEY,  JY61P_KEY_UNLOCK)
-        && _write(JY61P_REG_CALSW, JY61P_CAL_YAW_ZERO)
-        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK)
-        && _write(JY61P_REG_SAVE,  JY61P_SAVE)
-        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK);
+    bool ok = _write(JY61P_REG_KEY,  JY61P_KEY_UNLOCK)
+           && _write(JY61P_REG_CALSW, JY61P_CAL_YAW_ZERO)
+           && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK)
+           && _write(JY61P_REG_SAVE,  JY61P_SAVE)
+           && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK);
+    if (ok) {
+        /* JY61P 内部 yaw 已归零, 软件端 total_yaw 也同步清零 */
+        total_yaw_raw = 0;
+        prev_yaw_raw  = 0;
+        first_yaw     = true;
+    }
+    return ok;
 }
 
 bool JY61P_cal_acc(void)

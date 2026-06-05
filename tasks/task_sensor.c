@@ -90,9 +90,10 @@ void vTaskSensor(void *pvParameters)
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
-    /* 上一周期编码器速度 (用于 dv/dt) */
-    float prev_enc_speed = 0.0f;
-    bool  first_run = true;
+    /* 加速度计上电零偏校准: 前 100 样本取均值 */
+    static float  g_accel_bias_ax = 0.0f;
+    static int    g_accel_cal_cnt = 100;
+    static float  g_accel_cal_sum = 0.0f;
 
     /* 心跳计数 */
     uint8_t hb_cnt = 0;
@@ -125,8 +126,31 @@ void vTaskSensor(void *pvParameters)
             g_sensor_data.pitch    =  (float)ra.roll  * JY61P_ANG_SCALE;
             g_sensor_data.yaw      = ang_yaw;
             g_sensor_data.total_yaw = JY61P_getTotalYaw();
-            /* 加速度: 前=-JY61P_Y, 左=JY61P_X */
-            g_sensor_data.ax = -(float)ri.ay * JY61P_ACC_SCALE * 1000.0f;
+            /* 加速度: 前=-JY61P_Y, 减零偏 → 1 状态 Kalman 平滑 */
+            float ax_raw = -(float)ri.ay * JY61P_ACC_SCALE * 1000.0f;
+            if (g_accel_cal_cnt > 0) {
+                g_accel_cal_sum += ax_raw;
+                if (--g_accel_cal_cnt == 0)
+                    g_accel_bias_ax = g_accel_cal_sum / 100.0f;
+            }
+            float ax_unbiased = ax_raw - g_accel_bias_ax;
+
+            /* 1 状态 Kalman: 滤除电机振动噪声 (~40Hz), 保留运动信号 (<5Hz) */
+            {
+                static float ax_state = 0.0f;   /* 估计值 */
+                static float ax_P     = 100.0f; /* 协方差 */
+                const float Q_acc = 50.0f;      /* 过程噪声: 加速度变化率 */
+                const float R_acc = 2000.0f;    /* 测量噪声: 传感器抖动 */
+
+                /* 预测 */
+                ax_P += Q_acc;
+
+                /* 更新 */
+                float K = ax_P / (ax_P + R_acc);
+                ax_state += K * (ax_unbiased - ax_state);
+                ax_P = (1.0f - K) * ax_P;
+                g_sensor_data.ax = ax_state;
+            }
             g_sensor_data.ay =  (float)ri.ax * JY61P_ACC_SCALE * 1000.0f;
             g_sensor_data.az =  (float)ri.az * JY61P_ACC_SCALE * 1000.0f;
             /* 角速度: 横滚速率=-JY61P_gy, 俯仰速率=JY61P_gx, 偏航=gz 不变 */
@@ -166,19 +190,9 @@ void vTaskSensor(void *pvParameters)
         float gyro_rate   = g_sensor_data.gz;          /* °/s */
         float delta_theta = gyro_rate * 3.14159265359f / 180.0f * 0.01f; /* °/s→rad/10ms */
 
-        /* ── 5. 打滑检测 ── */
-        bool slipping = false;
-        if (imu_ok && !first_run) {
-            /* 前向加速度: ax 旋转到车体前向 (近似: ax * cos(θ)) */
-            float ax_forward = g_sensor_data.ax;
-            float dv_enc = (cur_speed - prev_enc_speed) / 0.01f;  /* mm/s² */
-            slipping = slip_detect(ax_forward, dv_enc);
-        }
-        prev_enc_speed = cur_speed;
-        first_run = false;
-
-        /* ── 6. Kalman 预测 ── */
-        kalman5_predict(&g_kf, delta_dist, delta_theta, 0.01f, slipping);
+        /* ── 5. Kalman 预测 ── */
+        kalman5_predict(&g_kf, delta_dist, delta_theta, 0.01f, false,
+                        g_sensor_data.ax);  /* ax 仅显示用, 不参与预测 */
 
         /* ── 7. Kalman 测量更新 — 弧线段灰度 ── */
         if (gray_ok && gray_bits != 0 && g_ctrl_mode == CTRL_MODE_LINE_TRACK) {

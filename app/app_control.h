@@ -53,6 +53,8 @@ typedef struct {
     uint32_t          elapsed_ms;
     uint32_t          segment_start_tick;
     float             segment_start_dist;  /* 段起始编码器平均距离 */
+    float             segment_target_hdg;  /* 段目标航向 (°, 段入口锁死) */
+    float             segment_distance;    /* 段总距离 (mm, 编码器) */
     uint32_t          vertex_pause_start;  /* 顶点停车起始 tick */
     uint8_t           line_lost_cnt;       /* 出线计数器 */
     bool              line_detected;       /* 已检测到黑线 */
@@ -76,7 +78,8 @@ extern volatile int g_ctrl_mode;
 /* ── API ── */
 void control_init(void);
 void control_load_from_flash(const flash_config_t *cfg);
-void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw);
+void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
+                 float yaw_deg);   /* JY61P 当前航向 (°), 用于航向保持 */
 void control_start_task(uint8_t task_id);
 void control_estop(void);
 

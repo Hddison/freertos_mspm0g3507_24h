@@ -266,7 +266,6 @@ TIMER1.interrupts        = ["ZERO"];
 
 UART1.$name                      = "UART_0";
 UART1.targetBaudRate             = 115200;
-UART1.enabledInterrupts          = ["RX"];
 UART1.interruptPriority          = "3";
 UART1.enabledDMARXTriggers       = "DL_UART_DMA_INTERRUPT_RX";
 UART1.enabledDMATXTriggers       = "DL_UART_DMA_INTERRUPT_TX";

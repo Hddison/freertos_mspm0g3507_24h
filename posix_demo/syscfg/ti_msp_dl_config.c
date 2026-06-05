@@ -557,12 +557,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_0_init(void)
     DL_UART_Main_setBaudRateDivisor(UART_0_INST, UART_0_IBRD_40_MHZ_115200_BAUD, UART_0_FBRD_40_MHZ_115200_BAUD);
 
 
-    /* Configure Interrupts */
-    DL_UART_Main_enableInterrupt(UART_0_INST,
-                                 DL_UART_MAIN_INTERRUPT_RX);
-    /* Setting the Interrupt Priority */
-    NVIC_SetPriority(UART_0_INST_INT_IRQN, 3);
-
     /* Configure DMA Receive Event */
     DL_UART_Main_enableDMAReceiveEvent(UART_0_INST, DL_UART_DMA_INTERRUPT_RX);
     /* Configure DMA Transmit Event */

@@ -5,6 +5,19 @@ add_executable(posix_demo
     main.c
     syscfg/ti_msp_dl_config.c
     freertos/ticlang/startup_mspm0g350x_ticlang.c
+    # App modules (root app/)
+    ${CMAKE_SOURCE_DIR}/app/app_pid.c
+    ${CMAKE_SOURCE_DIR}/app/app_kalman.c
+    ${CMAKE_SOURCE_DIR}/app/app_menu.c
+    ${CMAKE_SOURCE_DIR}/app/app_control.c
+    ${CMAKE_SOURCE_DIR}/app/app_flash.c
+    ${CMAKE_SOURCE_DIR}/app/app_slip.c
+    ${CMAKE_SOURCE_DIR}/app/app_motor_test.c
+    # Task modules (root tasks/)
+    ${CMAKE_SOURCE_DIR}/tasks/task_button.c
+    ${CMAKE_SOURCE_DIR}/tasks/task_lcd.c
+    ${CMAKE_SOURCE_DIR}/tasks/task_sensor.c
+    ${CMAKE_SOURCE_DIR}/tasks/task_control.c
 )
 
 target_include_directories(posix_demo PRIVATE

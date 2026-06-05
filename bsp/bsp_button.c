@@ -16,7 +16,7 @@
 
 /* ── 时序参数 (ms, 基于 20ms 调用周期) ── */
 #define SCAN_PERIOD_MS   20      /* 期望调用周期                      */
-#define DEBOUNCE_MS      40      /* 去抖时间                          */
+#define DEBOUNCE_MS      60      /* 去抖时间                          */
 #define LONG_PRESS_MS    500     /* 长按阈值                          */
 #define HOLD_REPEAT_MS   200     /* HOLD 重复间隔                      */
 

@@ -18,6 +18,8 @@ pid_t g_pid_speed;
 pid_t g_pid_pos;
 pid_t g_pid_heading;
 pid_t g_pid_steer;
+pid_t g_pid_speed_l;          /* 左轮速度 PID */
+pid_t g_pid_speed_r;          /* 右轮速度 PID */
 float g_target_speed = DEFAULT_TARGET_SPEED;
 
 /* ══════════ 竞赛状态 ══════════ */
@@ -119,6 +121,10 @@ void control_init(void)
     /* PID 实例初始化 (默认值, flash_config 加载后会覆盖) */
     pid_init(&g_pid_speed,   DEFAULT_SPEED_KP,   DEFAULT_SPEED_KI,
              DEFAULT_SPEED_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
+    pid_init(&g_pid_speed_l, DEFAULT_SPEED_L_KP, DEFAULT_SPEED_L_KI,
+             DEFAULT_SPEED_L_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
+    pid_init(&g_pid_speed_r, DEFAULT_SPEED_R_KP, DEFAULT_SPEED_R_KI,
+             DEFAULT_SPEED_R_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
     pid_init(&g_pid_pos,     DEFAULT_POS_KP,     0.0f,
              0.0f,            DEFAULT_POS_I_LIM,  DEFAULT_TARGET_SPEED);
     pid_init(&g_pid_heading, DEFAULT_HEADING_KP,  DEFAULT_HEADING_KI,
@@ -137,6 +143,8 @@ void control_init(void)
 void control_load_from_flash(const flash_config_t *cfg)
 {
     pid_set_gains(&g_pid_speed,   cfg->speed_kp,  cfg->speed_ki,  cfg->speed_kd);
+    pid_set_gains(&g_pid_speed_l, cfg->speed_l_kp, cfg->speed_l_ki, cfg->speed_l_kd);
+    pid_set_gains(&g_pid_speed_r, cfg->speed_r_kp, cfg->speed_r_ki, cfg->speed_r_kd);
     pid_set_gains(&g_pid_pos,     cfg->pos_kp,    0.0f,            0.0f);
     pid_set_gains(&g_pid_heading, cfg->heading_kp, cfg->heading_ki, cfg->heading_kd);
     pid_set_gains(&g_pid_steer,   cfg->steer_kp,  0.0f,            cfg->steer_kd);
@@ -189,6 +197,8 @@ void control_start_task(uint8_t task_id)
 
     /* 重置 PID 积分 */
     pid_reset(&g_pid_speed);
+    pid_reset(&g_pid_speed_l);
+    pid_reset(&g_pid_speed_r);
     pid_reset(&g_pid_pos);
     pid_reset(&g_pid_heading);
     pid_reset(&g_pid_steer);
@@ -255,7 +265,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
         if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
         if (abs(right) < PWM_DEAD_ZONE) right = 0;
 
-        Motor_set(left, -right); /* B=REV */
+        Motor_set(right, -left); /* A=右, B=左(dir=-1) */
 
         /* 到点判定 */
         if (dist < VERTEX_ARRIVAL_DIST) {
@@ -286,7 +296,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
         if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
         if (abs(right) < PWM_DEAD_ZONE) right = 0;
 
-        Motor_set(left, -right); /* B=REV */
+        Motor_set(right, -left); /* A=右, B=左(dir=-1) */
 
         /* 出线检测: 连续丢失 N 个周期 → 切换到 POSITION 到达目标 */
         if (g_comp.line_detected) {

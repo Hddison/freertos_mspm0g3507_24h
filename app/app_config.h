@@ -91,10 +91,20 @@
 /* ═══════════════════════ 控制参数默认值 ═══════════════════════ */
 
 /* 速度 PID (内环) */
-#define DEFAULT_SPEED_KP     2.0f
-#define DEFAULT_SPEED_KI     0.1f
-#define DEFAULT_SPEED_KD     0.5f
+#define DEFAULT_SPEED_KP     1.56f
+#define DEFAULT_SPEED_KI     0.57f
+#define DEFAULT_SPEED_KD     0.2f
 #define DEFAULT_SPEED_I_LIM  500.0f  /* 积分限幅 (±PWM) */
+
+/* 左轮速度 PID 出厂默认值 */
+#define DEFAULT_SPEED_L_KP   1.00f
+#define DEFAULT_SPEED_L_KI   1.00f
+#define DEFAULT_SPEED_L_KD   0.00f
+
+/* 右轮速度 PID 出厂默认值 */
+#define DEFAULT_SPEED_R_KP   1.00f
+#define DEFAULT_SPEED_R_KI   1.00f
+#define DEFAULT_SPEED_R_KD   0.00f
 
 /* 位置 PID (外环) — 输出 target_speed */
 #define DEFAULT_POS_KP       0.05f
@@ -106,9 +116,9 @@
 #define DEFAULT_STEER_I_LIM  400.0f
 
 /* 航向 PID (heading hold 辅助) */
-#define DEFAULT_HEADING_KP   8.0f
-#define DEFAULT_HEADING_KI   0.05f
-#define DEFAULT_HEADING_KD   1.0f
+#define DEFAULT_HEADING_KP   5.20f
+#define DEFAULT_HEADING_KI   25.55f
+#define DEFAULT_HEADING_KD   2.22f
 #define DEFAULT_HEADING_I_LIM 400.0f
 
 /* 曲率→差速增益 (steer_pwm = curvature * v * GAIN) */

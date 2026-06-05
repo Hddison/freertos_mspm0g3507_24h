@@ -63,6 +63,8 @@ extern pid_t g_pid_speed;
 extern pid_t g_pid_pos;
 extern pid_t g_pid_heading;
 extern pid_t g_pid_steer;
+extern pid_t g_pid_speed_l;       /* 左轮速度 PID */
+extern pid_t g_pid_speed_r;       /* 右轮速度 PID */
 extern float g_target_speed;
 
 /* ── 全局竞赛状态 ── */

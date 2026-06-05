@@ -15,10 +15,10 @@ static volatile int32_t g_enc2;
 
 /* ── 电机 & 编码器配置 (由 main.c 从 Flash 加载后设置) ── */
 int8_t  g_motor_a_dir  = 1;    /* Motor A: +1=正PWM前进, -1=反转 */
-int8_t  g_motor_b_dir  = 1;    /* Motor B: +1=正PWM前进, -1=反转 */
+int8_t  g_motor_b_dir  = -1;    /* Motor B: +1=正PWM前进, -1=反转 */
 int8_t  g_enc1_pol     = 1;    /* Encoder 1 极性 */
 int8_t  g_enc2_pol     = 1;    /* Encoder 2 极性 */
-bool    g_motor_a_left = true; /* Motor A = 左轮 */
+bool    g_motor_a_left = false; /* Motor A = 左轮 */
 
 #define ENC1_MASK   (GPIO_ENC_PIN_E1A_PIN | GPIO_ENC_PIN_E1B_PIN)  /* E1A=PA27 + E1B=PA26 */
 #define ENC2_MASK   (GPIO_ENC_PIN_E2A_PIN | GPIO_ENC_PIN_E2B_PIN)  /* E2A=PA28 + E2B=PA31 */
@@ -77,6 +77,8 @@ void Motor_set(int16_t pwma, int16_t pwmb)
 
 int32_t Motor_enc1(void) { return g_enc1 * g_enc1_pol; }
 int32_t Motor_enc2(void) { return g_enc2 * g_enc2_pol; }
+int32_t Motor_enc1Raw(void) { return g_enc1; }
+int32_t Motor_enc2Raw(void) { return g_enc2; }
 
 /* 距离换算: 500PPR × 减速比 1:20 × 轮径 48mm × 2x 上升沿解码 */
 #define DIST_PER_COUNT  (3.14159265f * 48.0f / (500.0f * 20.0f * 2.0f))
@@ -84,6 +86,14 @@ int32_t Motor_enc2(void) { return g_enc2 * g_enc2_pol; }
 float Motor_enc1Dist(void) { return (float)Motor_enc1() * DIST_PER_COUNT; }
 float Motor_enc2Dist(void) { return (float)Motor_enc2() * DIST_PER_COUNT; }
 void  Motor_encReset(void) { g_enc1 = 0; g_enc2 = 0; }
+
+/* 单编码器速度 (mm/s), 已乘极性 */
+float Motor_enc1Speed(void) {
+    return (float)(g_enc1_speed * g_enc1_pol) * DIST_PER_COUNT * 100.0f;
+}
+float Motor_enc2Speed(void) {
+    return (float)(g_enc2_speed * g_enc2_pol) * DIST_PER_COUNT * 100.0f;
+}
 
 /* ══════ 10ms 定时器 ISR: 编码器转速采样 ══════ */
 

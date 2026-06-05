@@ -19,6 +19,7 @@
 #include "hw_jy61p.h"     /* JY61P_zero_yaw, cal */
 #include "app_kalman.h"   /* kalman5_wrap_angle */
 #include <math.h>          /* fabsf */
+#include "ti_msp_dl_config.h"
 #include "util.h"
 #include <string.h>
 #include <stdio.h>   /* snprintf (TI toolchain supports it) */
@@ -40,6 +41,8 @@ extern pid_t g_pid_speed;
 extern pid_t g_pid_pos;
 extern pid_t g_pid_heading;
 extern pid_t g_pid_steer;
+extern pid_t g_pid_speed_l;
+extern pid_t g_pid_speed_r;
 
 /* 全局目标速度 (app_control.c) */
 extern float g_target_speed;
@@ -70,6 +73,8 @@ static void render_debug_kalman(float kf_x, float kf_y, float kf_theta);
 static void render_debug_pid(void);
 static void render_debug_slip(void);
 static void render_debug_heading(void);
+static void render_debug_speed(void);
+static void render_debug_motor_id(void);
 
 /* ══════════ 菜单树定义 (static const) ══════════ */
 
@@ -89,6 +94,12 @@ static const menu_item_t menu_pid[] = {
     {"Speed KP",       MENU_TYPE_VALUE,  NULL, 0},
     {"Speed KI",       MENU_TYPE_VALUE,  NULL, 1},
     {"Speed KD",       MENU_TYPE_VALUE,  NULL, 2},
+    {"Speed L KP",     MENU_TYPE_VALUE,  NULL, 8},
+    {"Speed L KI",     MENU_TYPE_VALUE,  NULL, 9},
+    {"Speed L KD",     MENU_TYPE_VALUE,  NULL, 12},
+    {"Speed R KP",     MENU_TYPE_VALUE,  NULL, 13},
+    {"Speed R KI",     MENU_TYPE_VALUE,  NULL, 14},
+    {"Speed R KD",     MENU_TYPE_VALUE,  NULL, 15},
     {"Position KP",    MENU_TYPE_VALUE,  NULL, 3},
     {"Steer KP",       MENU_TYPE_VALUE,  NULL, 4},
     {"Steer KD",       MENU_TYPE_VALUE,  NULL, 5},
@@ -101,7 +112,7 @@ static const menu_item_t menu_pid[] = {
     {"Return",         MENU_TYPE_RETURN, NULL, 9},
     {NULL, 0, NULL, 0},
 };
-#define MENU_PID_COUNT  13
+#define MENU_PID_COUNT  19
 
 /* 子菜单 — 校准 */
 static const menu_item_t menu_cal[] = {
@@ -121,10 +132,12 @@ static const menu_item_t menu_debug[] = {
     {"PID Monitor",        MENU_TYPE_SCREEN,  (void*)SCREEN_DEBUG_PID,    2},
     {"Slip Test",          MENU_TYPE_SCREEN,  (void*)SCREEN_DEBUG_SLIP,   3},
     {"Heading Hold",       MENU_TYPE_SCREEN,  (void*)SCREEN_DEBUG_HEADING, 4},
-    {"Return",             MENU_TYPE_RETURN,  NULL, 5},
+    {"Speed Loop",         MENU_TYPE_SCREEN,  (void*)SCREEN_DEBUG_SPEED,   5},
+    {"Motor ID Test",      MENU_TYPE_SCREEN,  (void*)SCREEN_DEBUG_MOTOR_ID, 6},
+    {"Return",             MENU_TYPE_RETURN,  NULL, 7},
     {NULL, 0, NULL, 0},
 };
-#define MENU_DEBUG_COUNT  5
+#define MENU_DEBUG_COUNT  7
 
 /* 子菜单 — 按键重映射 */
 static const menu_item_t menu_remap[] = {
@@ -190,8 +203,14 @@ float* menu_get_pid_ptr(int pid_id)
     case 5: return &g_pid_steer.kd;
     case 6: return &g_pid_heading.kp;
     case 7:  return &g_target_speed;
+    case 8:  return &g_pid_speed_l.kp;
+    case 9:  return &g_pid_speed_l.ki;
     case 10: return &g_pid_heading.ki;
     case 11: return &g_pid_heading.kd;
+    case 12: return &g_pid_speed_l.kd;
+    case 13: return &g_pid_speed_r.kp;
+    case 14: return &g_pid_speed_r.ki;
+    case 15: return &g_pid_speed_r.kd;
     default: return NULL;
     }
 }
@@ -230,6 +249,12 @@ void menu_action_save(void)
     g_flash_cfg.speed_kp     = g_pid_speed.kp;
     g_flash_cfg.speed_ki     = g_pid_speed.ki;
     g_flash_cfg.speed_kd     = g_pid_speed.kd;
+    g_flash_cfg.speed_l_kp   = g_pid_speed_l.kp;
+    g_flash_cfg.speed_l_ki   = g_pid_speed_l.ki;
+    g_flash_cfg.speed_l_kd   = g_pid_speed_l.kd;
+    g_flash_cfg.speed_r_kp   = g_pid_speed_r.kp;
+    g_flash_cfg.speed_r_ki   = g_pid_speed_r.ki;
+    g_flash_cfg.speed_r_kd   = g_pid_speed_r.kd;
     g_flash_cfg.steer_kp     = g_pid_steer.kp;
     g_flash_cfg.steer_kd     = g_pid_steer.kd;
     g_flash_cfg.heading_kp   = g_pid_heading.kp;
@@ -392,7 +417,9 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
         m->screen == SCREEN_DEBUG_KALMAN ||
         m->screen == SCREEN_DEBUG_PID ||
         m->screen == SCREEN_DEBUG_SLIP ||
-        m->screen == SCREEN_DEBUG_HEADING) {
+        m->screen == SCREEN_DEBUG_HEADING ||
+        m->screen == SCREEN_DEBUG_SPEED ||
+        m->screen == SCREEN_DEBUG_MOTOR_ID) {
         if (m->screen == SCREEN_DEBUG_HEADING) {
             extern volatile sensor_data_t g_sensor_data;
             extern bool g_heading_hold_running;
@@ -423,6 +450,54 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                     }
                     return true;
                 }
+            }
+            return false;
+        }
+        if (m->screen == SCREEN_DEBUG_SPEED) {
+            extern bool g_speed_hold_running;
+            extern float g_speed_target;
+            if (dir == BTN_DIR_BACK && typ == BTN_EVT_SHORT) {
+                Motor_set(0, 0);
+                g_speed_hold_running = false;
+                pop_menu(m);
+                return true;
+            }
+            if (dir == BTN_DIR_ENTER && typ == BTN_EVT_SHORT) {
+                if (g_speed_hold_running) {
+                    /* STOP */
+                    g_speed_hold_running = false;
+                    Motor_set(0, 0);
+                } else {
+                    /* START: reset 左右 PID 积分, 纯目标速度驱动 */
+                    pid_reset(&g_pid_speed_l);
+                    pid_reset(&g_pid_speed_r);
+                    g_speed_hold_running = true;
+                }
+                return true;
+            }
+            /* UP/DOWN: 任何时候都可调整目标速度 */
+            if (dir == BTN_DIR_UP && (typ == BTN_EVT_SHORT || typ == BTN_EVT_HOLD)) {
+                g_speed_target += 50.0f;
+                if (g_speed_target > 2000.0f) g_speed_target = 2000.0f;
+                return true;
+            }
+            if (dir == BTN_DIR_DOWN && (typ == BTN_EVT_SHORT || typ == BTN_EVT_HOLD)) {
+                g_speed_target -= 50.0f;
+                if (g_speed_target < 0.0f) g_speed_target = 0.0f;
+                return true;
+            }
+            return false;
+        }
+        if (m->screen == SCREEN_DEBUG_MOTOR_ID) {
+            extern uint8_t g_motor_id_state;
+            if (dir == BTN_DIR_BACK && typ == BTN_EVT_SHORT) {
+                g_motor_id_state = 0;
+                pop_menu(m);
+                return true;
+            }
+            if (dir == BTN_DIR_ENTER && typ == BTN_EVT_SHORT) {
+                g_motor_id_state = (g_motor_id_state + 1) % 3;
+                return true;
             }
             return false;
         }
@@ -509,7 +584,7 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                         if (it->id == 0) { buzzer_f = g_buzzer_enabled?1.0f:0.0f; m->edit_value = &buzzer_f; }
                         else             { led_f = g_led_heartbeat_enabled?1.0f:0.0f; m->edit_value = &led_f; }
                         m->edit_step = 1.0f;
-                    } else if (it->id < 8 || it->id == 10 || it->id == 11) {
+                    } else if (it->id < 16 || it->id == 10 || it->id == 11) {
                         m->edit_value = menu_get_pid_ptr(it->id);
                         m->edit_step   = (it->id == 7) ? 10.0f : 0.01f;
                     }
@@ -522,6 +597,8 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                     if (it->id == 80) {
                         /* 恢复 PID 出厂默认值 */
                         pid_set_gains(&g_pid_speed,   DEFAULT_SPEED_KP,   DEFAULT_SPEED_KI, DEFAULT_SPEED_KD);
+                        pid_set_gains(&g_pid_speed_l, DEFAULT_SPEED_L_KP, DEFAULT_SPEED_L_KI, DEFAULT_SPEED_L_KD);
+                        pid_set_gains(&g_pid_speed_r, DEFAULT_SPEED_R_KP, DEFAULT_SPEED_R_KI, DEFAULT_SPEED_R_KD);
                         pid_set_gains(&g_pid_pos,     DEFAULT_POS_KP,     0.0f, 0.0f);
                         pid_set_gains(&g_pid_heading, DEFAULT_HEADING_KP,  0.0f, 0.0f);
                         pid_set_gains(&g_pid_steer,   DEFAULT_STEER_KP,   0.0f, DEFAULT_STEER_KD);
@@ -648,6 +725,8 @@ void menu_render(const menu_state_t *m, const sensor_data_t *sensor,
     case SCREEN_DEBUG_PID:    render_debug_pid();            break;
     case SCREEN_DEBUG_SLIP:    render_debug_slip();           break;
     case SCREEN_DEBUG_HEADING: render_debug_heading();        break;
+    case SCREEN_DEBUG_SPEED:   render_debug_speed();          break;
+    case SCREEN_DEBUG_MOTOR_ID: render_debug_motor_id();      break;
     }
 }
 
@@ -1083,18 +1162,36 @@ static void render_debug_kalman(float kf_x, float kf_y, float kf_theta)
 
 static void render_debug_pid(void)
 {
-    extern pid_t g_pid_speed, g_pid_heading, g_pid_steer;
+    extern pid_t g_pid_speed, g_pid_heading, g_pid_steer, g_pid_pos;
+    extern pid_t g_pid_speed_l, g_pid_speed_r;
     int y=0;
     ST7789_drawStringFast(0,y,"=== PID Monitor ===",Font8_Table,FW8,8,GREEN,BLACK);
     y+=FH8*2;
     char b[28];
-    snprintf(b,sizeof(b),"Speed: Kp=%.1f Ki=%.1f Kd=%.1f",g_pid_speed.kp,g_pid_speed.ki,g_pid_speed.kd);
+    /* Speed combined (competition loop) */
+    snprintf(b,sizeof(b),"Spd: Kp%.1f Ki%.1f Kd%.1f",
+             g_pid_speed.kp,g_pid_speed.ki,g_pid_speed.kd);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+    /* Per-motor speed */
+    snprintf(b,sizeof(b)," L:  Kp%.1f Ki%.1f Kd%.1f",
+             g_pid_speed_l.kp,g_pid_speed_l.ki,g_pid_speed_l.kd);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+    snprintf(b,sizeof(b)," R:  Kp%.1f Ki%.1f Kd%.1f",
+             g_pid_speed_r.kp,g_pid_speed_r.ki,g_pid_speed_r.kd);
     ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8*2;
-    snprintf(b,sizeof(b),"Steer: Kp=%.1f Kd=%.1f",g_pid_steer.kp,g_pid_steer.kd);
-    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8*2;
-    snprintf(b,sizeof(b),"Head:  Kp=%.1f",g_pid_heading.kp);
-    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8*2;
-    snprintf(b,sizeof(b),"Target: %.0f mm/s",g_target_speed);
+    /* Position */
+    snprintf(b,sizeof(b),"Pos: Kp%.1f",g_pid_pos.kp);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+    /* Steer */
+    snprintf(b,sizeof(b),"Ste: Kp%.1f Ki%.1f Kd%.1f",
+             g_pid_steer.kp,g_pid_steer.ki,g_pid_steer.kd);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+    /* Heading */
+    snprintf(b,sizeof(b),"Hdg: Kp%.1f Ki%.1f Kd%.1f",
+             g_pid_heading.kp,g_pid_heading.ki,g_pid_heading.kd);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+    /* Target speed */
+    snprintf(b,sizeof(b),"Tgt: %.0f mm/s",g_target_speed);
     ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,YELLOW,BLACK);
     ST7789_drawStringFast(0,ST7789_HEIGHT-FH8,"[BACK] Return",Font8_Table,FW8,8,MAGENTA,BLACK);
 }
@@ -1102,6 +1199,13 @@ static void render_debug_pid(void)
 /* ── Heading Hold 状态 ── */
 bool    g_heading_hold_running;
 float   g_heading_target;
+
+/* ── Speed Loop 状态 ── */
+bool    g_speed_hold_running;
+float   g_speed_target;
+
+/* ── Motor ID Test 状态 ── */
+uint8_t g_motor_id_state;   /* 0=OFF, 1=Motor A, 2=Motor B */
 
 static void render_debug_slip(void)
 {
@@ -1176,4 +1280,148 @@ static void render_debug_heading(void)
         y += FH8;
         ST7789_drawStringFast(0,ST7789_HEIGHT-FH8*2,"[LONG] Start  [BACK] Exit",Font8_Table,FW8,8,MAGENTA,BLACK);
     }
+}
+
+/* ── Speed Loop: 编码器反馈速度环控制 ── */
+static void render_debug_speed(void)
+{
+    extern pid_t g_pid_speed_l, g_pid_speed_r;
+    extern bool g_motor_a_left;
+    int y = 0;
+    char b[28];
+
+    /* 按编码器→车轮映射 */
+    float enc1_spd = Motor_enc1Speed();
+    float enc2_spd = Motor_enc2Speed();
+    float left_spd, right_spd;
+    if (g_motor_a_left) {
+        left_spd  = enc1_spd;
+        right_spd = enc2_spd;
+    } else {
+        left_spd  = enc2_spd;
+        right_spd = enc1_spd;
+    }
+
+    if (g_speed_hold_running) {
+        /* ── RUNNING: 左右独立 PID ── */
+        float lpwm = pid_compute(&g_pid_speed_l, g_speed_target, left_spd, 0.05f);
+        float rpwm = pid_compute(&g_pid_speed_r, g_speed_target, right_spd, 0.05f);
+        if (lpwm >  (float)PWM_MAX) lpwm =  (float)PWM_MAX;
+        if (lpwm < -(float)PWM_MAX) lpwm = -(float)PWM_MAX;
+        if (rpwm >  (float)PWM_MAX) rpwm =  (float)PWM_MAX;
+        if (rpwm < -(float)PWM_MAX) rpwm = -(float)PWM_MAX;
+        int16_t lp = (int16_t)lpwm;
+        int16_t rp = (int16_t)rpwm;
+        /* Motor A=右(rp), Motor B=左(-lp, dir=-1→前进) */
+        Motor_set(rp, -lp);
+
+        /* 红色标题栏 */
+        ST7789_setWindows(0,0,ST7789_WIDTH-1,FH8-1);
+        ST7789_clearRawDMA(RED,ST7789_WIDTH,FH8);
+        ST7789_drawStringFast(0,0,"=== SPEED ACTIVE ===",Font8_Table,FW8,8,WHITE,RED);
+        y = FH8 + 2;
+        #define HL(y, lbl, val, clr) do { \
+            ST7789_setWindows(0,y,ST7789_WIDTH-1,y+FH8-1); \
+            ST7789_clearRawDMA(BLACK,ST7789_WIDTH,FH8); \
+            snprintf(b,sizeof(b),"%s %.1f mm/s",lbl,(double)(val)); \
+            ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,clr,BLACK); \
+        } while(0)
+        HL(y, "Target:", g_speed_target, YELLOW); y+=FH8;
+        HL(y, "L Spd:", left_spd, WHITE); y+=FH8;
+        snprintf(b,sizeof(b),"L PWM:%4d I:%.0f",lp,(double)g_pid_speed_l.integral);
+        ST7789_setWindows(0,y,ST7789_WIDTH-1,y+FH8-1);
+        ST7789_clearRawDMA(BLACK,ST7789_WIDTH,FH8);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,(lp!=0)?WHITE:GREEN,BLACK); y+=FH8;
+        HL(y, "R Spd:", right_spd, WHITE); y+=FH8;
+        snprintf(b,sizeof(b),"R PWM:%4d I:%.0f",rp,(double)g_pid_speed_r.integral);
+        ST7789_setWindows(0,y,ST7789_WIDTH-1,y+FH8-1);
+        ST7789_clearRawDMA(BLACK,ST7789_WIDTH,FH8);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,(rp!=0)?WHITE:GREEN,BLACK); y+=FH8*2;
+        #undef HL
+        ST7789_drawStringFast(0,ST7789_HEIGHT-FH8*2,
+            "[SHRT] Stop  [UD] +/-50",Font8_Table,FW8,8,MAGENTA,BLACK);
+    } else {
+        /* ── STOPPED: 绿色标题栏 ── */
+        ST7789_setWindows(0,0,ST7789_WIDTH-1,FH8-1);
+        ST7789_clearRawDMA(GREEN,ST7789_WIDTH,FH8);
+        ST7789_drawStringFast(0,0,"=== SPEED STOPPED ===",Font8_Table,FW8,8,BLACK,GREEN);
+        y = FH8 + 2;
+        snprintf(b,sizeof(b),"Target: %.0f mm/s",(double)g_speed_target);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,YELLOW,BLACK); y+=FH8*2;
+        snprintf(b,sizeof(b),"L: %.0f mm/s",(double)left_spd);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+        snprintf(b,sizeof(b)," L Kp=%.1f Ki=%.2f Kd=%.2f",
+                 (double)g_pid_speed_l.kp,(double)g_pid_speed_l.ki,
+                 (double)g_pid_speed_l.kd);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+        snprintf(b,sizeof(b),"R: %.0f mm/s",(double)right_spd);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8;
+        snprintf(b,sizeof(b)," R Kp=%.1f Ki=%.2f Kd=%.2f",
+                 (double)g_pid_speed_r.kp,(double)g_pid_speed_r.ki,
+                 (double)g_pid_speed_r.kd);
+        ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y+=FH8*2;
+        ST7789_drawStringFast(0,ST7789_HEIGHT-FH8*2,
+            "[SHRT] Start  [UD] +/-50  [BACK] Exit",Font8_Table,FW8,8,MAGENTA,BLACK);
+    }
+}
+
+/* ── Motor ID Test: 绕过配置直接驱动, 裸读编码器 ── */
+static void render_debug_motor_id(void)
+{
+    extern volatile int32_t g_enc1_speed, g_enc2_speed;
+    int y = 0;
+    char b[28];
+
+    /* 根据状态直接控制 TB6612 + PWM (绕过 Motor_set 方向逻辑) */
+    switch (g_motor_id_state) {
+    case 0: /* OFF */
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0, DL_TIMER_CC_0_INDEX);
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0, DL_TIMER_CC_1_INDEX);
+        break;
+    case 1: /* Motor A: AIN1=0 AIN2=1, CC1 PWM=250 */
+        DL_GPIO_clearPins(GPIO_MOTOR_PORT, GPIO_MOTOR_AIN1_PIN);
+        DL_GPIO_setPins(GPIO_MOTOR_PORT,   GPIO_MOTOR_AIN2_PIN);
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 250, DL_TIMER_CC_1_INDEX);
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0,   DL_TIMER_CC_0_INDEX);
+        break;
+    case 2: /* Motor B: BIN1=0 BIN2=1, CC0 PWM=250 */
+        DL_GPIO_clearPins(GPIO_MOTOR_PORT, GPIO_MOTOR_BIN1_PIN);
+        DL_GPIO_setPins(GPIO_MOTOR_PORT,   GPIO_MOTOR_BIN2_PIN);
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 250, DL_TIMER_CC_0_INDEX);
+        DL_TimerA_setCaptureCompareValue(PWM_MOTOR_INST, 0,   DL_TIMER_CC_1_INDEX);
+        break;
+    }
+
+    /* 标题栏 */
+    uint16_t title_clr = (g_motor_id_state == 0) ? GREEN : RED;
+    const char *title = (g_motor_id_state == 0) ? "=== MOTOR ID TEST ===" :
+                        (g_motor_id_state == 1) ? "=== MOTOR A +250  ===" :
+                                                   "=== MOTOR B +250  ===";
+    ST7789_setWindows(0,0,ST7789_WIDTH-1,FH8-1);
+    ST7789_clearRawDMA(title_clr,ST7789_WIDTH,FH8);
+    ST7789_drawStringFast(0,0,title,Font8_Table,FW8,8,
+        (g_motor_id_state==0)?BLACK:WHITE,title_clr);
+    y = FH8 + 2;
+
+    /* 编码器原始读数 (Motor_enc1Raw/2 无极性修正) */
+    snprintf(b,sizeof(b),"ENC1 raw:%d spd:%d",(int)Motor_enc1Raw(),(int)g_enc1_speed);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y += FH8*2;
+    snprintf(b,sizeof(b),"ENC2 raw:%d spd:%d",(int)Motor_enc2Raw(),(int)g_enc2_speed);
+    ST7789_drawStringFast(0,y,b,Font8_Table,FW8,8,WHITE,BLACK); y += FH8*2;
+    /* 映射标注 */
+    ST7789_drawStringFast(0,y,"Motor A=Right  Motor B=Left",Font8_Table,FW8,8,YELLOW,BLACK); y += FH8;
+
+    /* 引脚状态说明 */
+    if (g_motor_id_state == 1) {
+        ST7789_drawStringFast(0,y,"AIN1=0 AIN2=1 CC1=250",Font8_Table,FW8,8,YELLOW,BLACK);
+        y += FH8*2;
+        ST7789_drawStringFast(0,y,"B ch: OFF",Font8_Table,FW8,8,WHITE,BLACK);
+    } else if (g_motor_id_state == 2) {
+        ST7789_drawStringFast(0,y,"BIN1=0 BIN2=1 CC0=250",Font8_Table,FW8,8,YELLOW,BLACK);
+        y += FH8*2;
+        ST7789_drawStringFast(0,y,"A ch: OFF",Font8_Table,FW8,8,WHITE,BLACK);
+    }
+
+    ST7789_drawStringFast(0,ST7789_HEIGHT-FH8*2,
+        "[SHRT] Next  [BACK] Exit",Font8_Table,FW8,8,MAGENTA,BLACK);
 }

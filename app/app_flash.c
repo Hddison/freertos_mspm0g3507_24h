@@ -131,6 +131,12 @@ void flash_config_defaults(flash_config_t *cfg)
     cfg->speed_kp    = DEFAULT_SPEED_KP;
     cfg->speed_ki    = DEFAULT_SPEED_KI;
     cfg->speed_kd    = DEFAULT_SPEED_KD;
+    cfg->speed_l_kp  = DEFAULT_SPEED_L_KP;
+    cfg->speed_l_ki  = DEFAULT_SPEED_L_KI;
+    cfg->speed_l_kd  = DEFAULT_SPEED_L_KD;
+    cfg->speed_r_kp  = DEFAULT_SPEED_R_KP;
+    cfg->speed_r_ki  = DEFAULT_SPEED_R_KI;
+    cfg->speed_r_kd  = DEFAULT_SPEED_R_KD;
     cfg->pos_kp      = DEFAULT_POS_KP;
     cfg->steer_kp    = DEFAULT_STEER_KP;
     cfg->steer_kd    = DEFAULT_STEER_KD;
@@ -150,12 +156,12 @@ void flash_config_defaults(flash_config_t *cfg)
     cfg->buzzer_enabled = 1;
     cfg->flags = FLASH_FLAG_BUZZER_EN;
 
-    /* 电机方向 & 编码器极性 (默认 1: 正向不反转, 电机A=左轮) */
-    cfg->motor_a_direction = 1;
-    cfg->motor_b_direction = 1;
-    cfg->enc1_polarity      = 1;
-    cfg->enc2_polarity      = 1;
-    cfg->motor_a_is_left    = 1;
+    /* 电机配置: Motor A=右轮, Motor B=左轮(B需方向反转) */
+    cfg->motor_a_direction = 1;   /* A正PWM→AIN1=0,AIN2=1→右轮前进 */
+    cfg->motor_b_direction = -1;  /* B正PWM→BIN1=0,BIN2=1→左轮前进 */
+    cfg->enc1_polarity      = 1;  /* ENC1 forward=正值 */
+    cfg->enc2_polarity      = 1;  /* ENC2 forward=正值 */
+    cfg->motor_a_is_left    = 0;  /* Motor A = 右轮 */
 
     /* 圈速清零 */
     memset(cfg->lap_times, 0, sizeof(cfg->lap_times));

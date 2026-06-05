@@ -33,7 +33,9 @@ typedef enum {
     SCREEN_DEBUG_KALMAN,
     SCREEN_DEBUG_PID,
     SCREEN_DEBUG_SLIP,
-    SCREEN_DEBUG_HEADING
+    SCREEN_DEBUG_HEADING,
+    SCREEN_DEBUG_SPEED,
+    SCREEN_DEBUG_MOTOR_ID
 } screen_type_t;
 
 /* ── 菜单项类型 ── */

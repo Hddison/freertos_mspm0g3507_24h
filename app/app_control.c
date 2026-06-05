@@ -116,7 +116,7 @@ static void advance_segment(void)
 
 void control_init(void)
 {
-    /* PID 实例初始化 */
+    /* PID 实例初始化 (默认值, flash_config 加载后会覆盖) */
     pid_init(&g_pid_speed,   DEFAULT_SPEED_KP,   DEFAULT_SPEED_KI,
              DEFAULT_SPEED_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
     pid_init(&g_pid_pos,     DEFAULT_POS_KP,     0.0f,
@@ -126,9 +126,21 @@ void control_init(void)
     pid_init(&g_pid_steer,   DEFAULT_STEER_KP,    0.0f,
              DEFAULT_STEER_KD, DEFAULT_STEER_I_LIM, PWM_MAX);
 
+    g_target_speed = DEFAULT_TARGET_SPEED;
+
     memset(&g_comp, 0, sizeof(g_comp));
     g_comp.mode  = CTRL_IDLE;
     g_ctrl_mode  = CTRL_IDLE;
+}
+
+/* 从 Flash 配置加载 PID 参数 */
+void control_load_from_flash(const flash_config_t *cfg)
+{
+    pid_set_gains(&g_pid_speed,   cfg->speed_kp,  cfg->speed_ki,  cfg->speed_kd);
+    pid_set_gains(&g_pid_pos,     cfg->pos_kp,    0.0f,            0.0f);
+    pid_set_gains(&g_pid_heading, cfg->heading_kp, 0.0f,            0.0f);
+    pid_set_gains(&g_pid_steer,   cfg->steer_kp,  0.0f,            cfg->steer_kd);
+    g_target_speed = cfg->target_speed;
 }
 
 /* ══════════ 启动竞赛任务 ══════════ */

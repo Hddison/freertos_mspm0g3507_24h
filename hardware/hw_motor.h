@@ -11,8 +11,16 @@
 #define HW_MOTOR_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MOTOR_PWM_MAX   999     /* PWM period-1, 0-999 */
+
+/* ── 电机 & 编码器配置 (由 main.c 从 Flash 加载后设置) ── */
+extern int8_t  g_motor_a_dir;     /* +1=正PWM前进, -1=反转 */
+extern int8_t  g_motor_b_dir;
+extern int8_t  g_enc1_pol;        /* 编码器极性: +1 / -1 */
+extern int8_t  g_enc2_pol;
+extern bool    g_motor_a_left;    /* true = Motor A 是左轮 */
 
 /* API */
 void   Motor_init(void);

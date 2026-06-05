@@ -60,14 +60,19 @@ void vTaskLcd(void *pvParameters)
             button_event_t evt;
             while (xQueueReceive(g_button_queue, &evt, 0) == pdPASS) {
                 menu_process_event(&menu, &evt);
-                idle_cnt = 0;  /* 有按键 → 重置超时计数 */
+                idle_cnt = 0;
             }
         }
 
         /* ── 2. 检查 auto-return ── */
+        /* TODO: auto-return 暂时禁用, 排查计数器异常 */
+        (void)idle_cnt;
+#if 0
         if (menu.screen != SCREEN_STATUS) {
             idle_cnt++;
             if (idle_cnt > (MENU_TIMEOUT_MS / PERIOD_LCD_MS)) {
+                extern void BSP_UART_tx_str(const char*);
+                BSP_UART_tx_str("[MENU] auto-return\r\n");
                 idle_cnt = 0;
                 menu.screen = SCREEN_STATUS;
                 menu.needs_full_redraw = true;
@@ -75,6 +80,7 @@ void vTaskLcd(void *pvParameters)
         } else {
             idle_cnt = 0;
         }
+#endif
 
         /* ── 3. 获取最新传感器数据 ── */
         {

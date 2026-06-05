@@ -29,6 +29,11 @@ void vTaskControl(void *pvParameters)
     (void)pvParameters;
 
     control_init();
+    /* 加载 Flash 中保存的 PID 参数 (覆盖 control_init 的默认值) */
+    {
+        extern flash_config_t g_flash_cfg;
+        control_load_from_flash(&g_flash_cfg);
+    }
 
     kalman5_t  local_kf;
     ctrl_cmd_t cmd;

@@ -90,7 +90,7 @@
         },
         {
             "label": "probe-rs 烧录 (Flash)",
-            "dependsOn": ["CMake 编译 (Build)", "probe-rs 下载执行", "probe-rs 复位"],
+            "dependsOn": ["CMake 编译 (执行)", "probe-rs 下载执行", "probe-rs 复位", "Clangd 刷新索引"],
             "dependsOrder": "sequence",
             "group": "none",
             "problemMatcher": [],

@@ -14,10 +14,10 @@
 
 /* ── 全局: 按键重映射 (默认 1:1, Flash 加载后覆盖) ── */
 uint8_t g_btn_remap[6] = {
-    BTN_DIR_UP,    /* BTN_ID_UP     → UP    */
-    BTN_DIR_LEFT,  /* BTN_ID_LEFT   → LEFT  */
-    BTN_DIR_DOWN,  /* BTN_ID_DOWN   → DOWN  */
-    BTN_DIR_RIGHT, /* BTN_ID_RIGHT  → RIGHT */
+    BTN_DIR_RIGHT, /* BTN_ID_UP     → RIGHT */
+    BTN_DIR_UP,    /* BTN_ID_LEFT   → UP    */
+    BTN_DIR_LEFT,  /* BTN_ID_DOWN   → LEFT  */
+    BTN_DIR_DOWN,  /* BTN_ID_RIGHT  → DOWN  */
     BTN_DIR_ENTER, /* BTN_ID_CENTER → ENTER */
     BTN_DIR_BACK   /* BTN_ID_BUTTON → BACK  */
 };
@@ -43,7 +43,7 @@ void vTaskButton(void *pvParameters)
 
             button_event_t btn_evt = {
                 .physical   = phys,
-                .logical    = g_btn_remap[phys],  /* 应用重映射 */
+                .logical    = g_btn_remap[phys],
                 .event_type = evt,
                 .tick       = xTaskGetTickCount()
             };

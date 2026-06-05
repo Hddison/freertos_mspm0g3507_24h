@@ -24,7 +24,9 @@
 
 #include "gui_paint.h"      /* BLACK, GREEN, CYAN, WHITE color macros */
 
+#include "bsp_button.h"   /* BTN_DIR_* */
 #include "app_config.h"
+#include "app_control.h"   /* control_load_from_flash */
 #include "app_flash.h"
 
 #include "task_button.h"
@@ -102,7 +104,9 @@ int main(void)
     if (!flash_config_load(&g_flash_cfg)) {
         BSP_UART_tx_str("[FLASH] No valid config, writing defaults\r\n");
         flash_config_defaults(&g_flash_cfg);
-        flash_config_save(&g_flash_cfg);
+        bool saved = flash_config_save(&g_flash_cfg);
+        BSP_UART_tx_str(saved ? "[FLASH] Defaults saved OK\r\n"
+                              : "[FLASH] Save FAILED!\r\n");
     } else {
         BSP_UART_tx_str("[FLASH] Config loaded OK\r\n");
     }
@@ -111,6 +115,50 @@ int main(void)
     g_buzzer_enabled        = (g_flash_cfg.flags & FLASH_FLAG_BUZZER_EN) != 0;
     g_led_heartbeat_enabled = true;
     memcpy(g_btn_remap, g_flash_cfg.btn_remap, 6);
+
+    /* 验证按键映射: 6 个逻辑方向必须各出现一次 (0-5), 否则重置 */
+    {
+        uint8_t seen[6] = {0};
+        bool remap_ok = true;
+        for (int i = 0; i < 6; i++) {
+            if (g_btn_remap[i] < 6) seen[g_btn_remap[i]]++;
+        }
+        for (int i = 0; i < 6; i++) {
+            if (seen[i] != 1) { remap_ok = false; break; }
+        }
+        if (!remap_ok) {
+            BSP_UART_tx_str("[BTN] Invalid remap, resetting defaults\r\n");
+            g_btn_remap[0] = BTN_DIR_RIGHT;
+            g_btn_remap[1] = BTN_DIR_UP;
+            g_btn_remap[2] = BTN_DIR_LEFT;
+            g_btn_remap[3] = BTN_DIR_DOWN;
+            g_btn_remap[4] = BTN_DIR_ENTER;
+            g_btn_remap[5] = BTN_DIR_BACK;
+            memcpy(g_flash_cfg.btn_remap, g_btn_remap, 6);
+            flash_config_save(&g_flash_cfg);
+        }
+    }
+
+    /* 加载 Flash 中的 PID 参数到控制器 */
+    control_load_from_flash(&g_flash_cfg);
+
+    /* 应用电机 & 编码器配置 */
+    g_motor_a_dir  = g_flash_cfg.motor_a_direction;
+    g_motor_b_dir  = g_flash_cfg.motor_b_direction;
+    g_enc1_pol     = g_flash_cfg.enc1_polarity;
+    g_enc2_pol     = g_flash_cfg.enc2_polarity;
+    g_motor_a_left = (bool)g_flash_cfg.motor_a_is_left;
+
+    /* 打印当前按键映射 */
+    {
+        const char *dirs[] = {"UP","DN","LT","RT","ENT","BACK"};
+        BSP_UART_tx_str("[BTN] remap: ");
+        for (int i = 0; i < 6; i++) {
+            BSP_UART_tx_str(dirs[g_btn_remap[i] < 6 ? g_btn_remap[i] : 0]);
+            BSP_UART_tx_str(" ");
+        }
+        BSP_UART_tx_str("\r\n");
+    }
 
     /* Step 8: 电机初始化 (GPIO 方向 + PWM + 编码器 ISR) */
     Motor_init();

@@ -8,6 +8,10 @@
 #include "app_pid.h"
 #include "app_flash.h"
 
+#include <FreeRTOS.h>
+#include <task.h>
+#include <queue.h>
+
 #include "bsp_button.h"   /* BTN_EVT_*, BTN_DIR_* */
 #include "gui_paint.h"    /* BLACK, GREEN, CYAN, WHITE, YELLOW, MAGENTA */
 #include "hw_st7789.h"
@@ -67,8 +71,9 @@ static const menu_item_t menu_contest[] = {
     {"Task3: Diag Cross",     MENU_TYPE_ACTION, NULL, 2},
     {"Task4: Auto 4 Laps",    MENU_TYPE_ACTION, NULL, 3},
     {"Return",                MENU_TYPE_RETURN, NULL, 4},
+    {NULL, 0, NULL, 0},
 };
-#define MENU_CONTEST_COUNT  (sizeof(menu_contest) / sizeof(menu_item_t))
+#define MENU_CONTEST_COUNT  5
 
 /* 子菜单 — PID 参数 */
 static const menu_item_t menu_pid[] = {
@@ -80,10 +85,12 @@ static const menu_item_t menu_pid[] = {
     {"Steer KD",       MENU_TYPE_VALUE,  NULL, 5},
     {"Heading KP",     MENU_TYPE_VALUE,  NULL, 6},
     {"Target Speed",   MENU_TYPE_VALUE,  NULL, 7},
+    {"Reset Defaults", MENU_TYPE_ACTION, NULL, 80},
     {"Save to Flash",  MENU_TYPE_ACTION, NULL, 8},
     {"Return",         MENU_TYPE_RETURN, NULL, 9},
+    {NULL, 0, NULL, 0},
 };
-#define MENU_PID_COUNT  (sizeof(menu_pid) / sizeof(menu_item_t))
+#define MENU_PID_COUNT  11
 
 /* 子菜单 — 校准 */
 static const menu_item_t menu_cal[] = {
@@ -92,27 +99,59 @@ static const menu_item_t menu_cal[] = {
     {"Gray Threshold",     MENU_TYPE_VALUE,  NULL, 2},
     {"Save to Flash",      MENU_TYPE_ACTION, NULL, 3},
     {"Return",             MENU_TYPE_RETURN, NULL, 4},
+    {NULL, 0, NULL, 0},  /* sentinel */
 };
-#define MENU_CAL_COUNT  (sizeof(menu_cal) / sizeof(menu_item_t))
+#define MENU_CAL_COUNT  5  /* 不含 sentinel */
+
+/* 子菜单 — 按键重映射 */
+static const menu_item_t menu_remap[] = {
+    {"Phys UP    ->", MENU_TYPE_ACTION, NULL, 100},
+    {"Phys LEFT  ->", MENU_TYPE_ACTION, NULL, 101},
+    {"Phys DOWN  ->", MENU_TYPE_ACTION, NULL, 102},
+    {"Phys RIGHT ->", MENU_TYPE_ACTION, NULL, 103},
+    {"Phys CENTER->", MENU_TYPE_ACTION, NULL, 104},
+    {"Phys BUTTON->", MENU_TYPE_ACTION, NULL, 105},
+    {"Save to Flash", MENU_TYPE_ACTION, NULL, 106},
+    {"Return",        MENU_TYPE_RETURN, NULL, 107},
+    {NULL, 0, NULL, 0},
+};
+#define MENU_REMAP_COUNT  8
+
+/* 子菜单 — 电机配置 */
+static const menu_item_t menu_motor[] = {
+    {"Motor A Dir:  ",    MENU_TYPE_ACTION, NULL, 110},
+    {"Motor B Dir:  ",    MENU_TYPE_ACTION, NULL, 111},
+    {"Enc1 Polarity:",    MENU_TYPE_ACTION, NULL, 112},
+    {"Enc2 Polarity:",    MENU_TYPE_ACTION, NULL, 113},
+    {"Motor A = Left:",   MENU_TYPE_ACTION, NULL, 114},
+    {"Save to Flash",     MENU_TYPE_ACTION, NULL, 115},
+    {"Return",            MENU_TYPE_RETURN, NULL, 116},
+    {NULL, 0, NULL, 0},
+};
+#define MENU_MOTOR_COUNT  7
 
 /* 子菜单 — 系统设置 */
 static const menu_item_t menu_settings[] = {
-    {"Buzzer: ",           MENU_TYPE_VALUE,  NULL, 0},  /* 切换 bool */
-    {"LED Heartbeat: ",    MENU_TYPE_VALUE,  NULL, 1},
-    {"Return",             MENU_TYPE_RETURN, NULL, 2},
+    {"Motor Config",       MENU_TYPE_SUBMENU, menu_motor,     0},
+    {"Buzzer: ",           MENU_TYPE_VALUE,  NULL, 1},
+    {"LED Heartbeat: ",    MENU_TYPE_VALUE,  NULL, 2},
+    {"Return",             MENU_TYPE_RETURN, NULL, 3},
+    {NULL, 0, NULL, 0},
 };
-#define MENU_SETTINGS_COUNT  (sizeof(menu_settings) / sizeof(menu_item_t))
+#define MENU_SETTINGS_COUNT  4
 
 /* 主菜单 */
 static const menu_item_t menu_main[] = {
     {"1. Contest Mode",    MENU_TYPE_SUBMENU, menu_contest,   0},
     {"2. PID Parameters",  MENU_TYPE_SUBMENU, menu_pid,       1},
     {"3. Calibration",     MENU_TYPE_SUBMENU, menu_cal,       2},
-    {"4. System Settings", MENU_TYPE_SUBMENU, menu_settings,  3},
-    {"5. System Info",     MENU_TYPE_SCREEN,  (void*)SCREEN_INFO, 4},
-    {"6. Return",          MENU_TYPE_RETURN,  NULL,            5},
+    {"4. Key Remapping",   MENU_TYPE_SUBMENU, menu_remap,     3},
+    {"5. System Settings", MENU_TYPE_SUBMENU, menu_settings,  4},
+    {"6. System Info",     MENU_TYPE_SCREEN,  (void*)SCREEN_INFO, 5},
+    {"7. Return",          MENU_TYPE_RETURN,  NULL,            6},
+    {NULL, 0, NULL, 0},
 };
-#define MENU_MAIN_COUNT  (sizeof(menu_main) / sizeof(menu_item_t))
+#define MENU_MAIN_COUNT  7
 
 /* ══════════ 辅助: 获取 PID 指针 ══════════ */
 
@@ -131,6 +170,9 @@ float* menu_get_pid_ptr(int pid_id)
     }
 }
 
+/* ── 按键重映射临时缓冲区 (编辑中, 保存后才应用到 g_btn_remap) ── */
+static uint8_t g_btn_remap_tmp[6];
+
 /* ══════════ 菜单动作回调 ══════════ */
 
 static ctrl_cmd_t g_pending_cmd = CMD_NONE;
@@ -148,9 +190,17 @@ void menu_clear_pending_cmd(menu_state_t *m)
     g_pending_cmd = CMD_NONE;
 }
 
+/* 标记: 是否从重映射菜单触发的保存 (用于应用 tmp→正式映射) */
+static bool g_save_from_remap = false;
+
 void menu_action_save(void)
 {
-    /* 将当前 PID 值写入 flash_config 并保存 */
+    /* 只有从重映射菜单保存时才应用临时映射 */
+    if (g_save_from_remap) {
+        memcpy(g_btn_remap, g_btn_remap_tmp, 6);
+        g_save_from_remap = false;
+    }
+    /* 将当前 PID / 按键 / 电机配置写入 flash_config 并保存 */
     g_flash_cfg.speed_kp     = g_pid_speed.kp;
     g_flash_cfg.speed_ki     = g_pid_speed.ki;
     g_flash_cfg.speed_kd     = g_pid_speed.kd;
@@ -158,6 +208,18 @@ void menu_action_save(void)
     g_flash_cfg.steer_kd     = g_pid_steer.kd;
     g_flash_cfg.heading_kp   = g_pid_heading.kp;
     g_flash_cfg.target_speed = g_target_speed;
+    g_flash_cfg.buzzer_enabled = g_buzzer_enabled ? 1 : 0;
+    memcpy(g_flash_cfg.btn_remap, g_btn_remap, 6);
+    g_flash_cfg.flags |= FLASH_FLAG_REMAPPED;
+    /* 电机配置 */
+    extern int8_t g_motor_a_dir, g_motor_b_dir;
+    extern int8_t g_enc1_pol, g_enc2_pol;
+    extern bool g_motor_a_left;
+    g_flash_cfg.motor_a_direction = g_motor_a_dir;
+    g_flash_cfg.motor_b_direction = g_motor_b_dir;
+    g_flash_cfg.enc1_polarity     = g_enc1_pol;
+    g_flash_cfg.enc2_polarity     = g_enc2_pol;
+    g_flash_cfg.motor_a_is_left   = (uint8_t)g_motor_a_left;
     flash_config_save(&g_flash_cfg);
 }
 
@@ -234,19 +296,18 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
         return false;
     }
 
-    /* ── 确认对话框: LEFT=Y RIGHT=N ── */
+    /* ── 确认对话框: ENTER=Yes, BACK=No ── */
     if (m->screen == SCREEN_CONFIRM) {
         if (typ == BTN_EVT_SHORT) {
-            if (dir == BTN_DIR_LEFT) {
-                m->confirm_yes = true;
-                /* 触发对应动作 */
+            if (dir == BTN_DIR_ENTER) {
+                /* 确认: 执行保存动作 */
                 if (m->confirm_msg && strstr(m->confirm_msg, "Save")) {
                     menu_action_save();
                 }
                 pop_menu(m);
                 return true;
-            } else if (dir == BTN_DIR_RIGHT || dir == BTN_DIR_BACK) {
-                m->confirm_yes = false;
+            } else if (dir == BTN_DIR_BACK) {
+                /* 取消: 不保存, 返回 (放弃 remap 修改) */
                 pop_menu(m);
                 return true;
             }
@@ -254,31 +315,50 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
         return false;
     }
 
-    /* ── 数值编辑 ── */
+    /* 进入重映射的 Save 前设标记 */
+    if (m->screen == SCREEN_MENU && m->menu == menu_remap) {
+        const menu_item_t *it = &m->menu[m->cursor];
+        if (it->id == 106) {
+            g_save_from_remap = true;
+        }
+    }
+
+    /* ── 数值编辑 ──
+     * UP/DOWN:   细调 (edit_step, 如 0.1)
+     * LEFT/RIGHT: 粗调 (edit_coarse, 如 1.0 = 10x)
+     * HOLD:      细调连续
+     * ENTER/BACK: 退出返回 */
     if (m->screen == SCREEN_VALUE_EDIT) {
         if (!m->edit_value) return false;
 
-        float step = (typ == BTN_EVT_HOLD) ? m->edit_step :
-                     (dir == BTN_DIR_LEFT || dir == BTN_DIR_RIGHT)
-                        ? m->edit_coarse : m->edit_step;
+        if (typ == BTN_EVT_SHORT || typ == BTN_EVT_HOLD) {
+            float step = (typ == BTN_EVT_HOLD) ? m->edit_step :
+                         (dir == BTN_DIR_LEFT || dir == BTN_DIR_RIGHT)
+                            ? m->edit_coarse : m->edit_step;
 
-        if (dir == BTN_DIR_UP) {
-            *m->edit_value += step;
-            return true;
-        } else if (dir == BTN_DIR_DOWN) {
-            *m->edit_value -= step;
-            return true;
-        } else if (dir == BTN_DIR_BACK || dir == BTN_DIR_ENTER) {
-            /* 退出编辑, 返回上级菜单 */
+            if (dir == BTN_DIR_UP || dir == BTN_DIR_RIGHT) {
+                *m->edit_value += step;
+                return true;
+            } else if (dir == BTN_DIR_DOWN || dir == BTN_DIR_LEFT) {
+                *m->edit_value -= step;
+                return true;
+            }
+        }
+        if ((typ == BTN_EVT_SHORT) &&
+            (dir == BTN_DIR_BACK || dir == BTN_DIR_ENTER)) {
             pop_menu(m);
             return true;
         }
         return false;
     }
 
-    /* ── 竞赛屏: BACK → 返回菜单 ── */
+    /* ── 竞赛屏: BACK → 急停 + 返回, 其他键忽略 ── */
     if (m->screen == SCREEN_CONTEST) {
         if (typ == BTN_EVT_SHORT && dir == BTN_DIR_BACK) {
+            /* 发送急停命令到 Control 任务 */
+            ctrl_cmd_t estop = CMD_ESTOP;
+            extern void *g_cmd_queue;
+            xQueueSend(g_cmd_queue, &estop, 0);
             pop_menu(m);
             return true;
         }
@@ -337,10 +417,13 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                     push_menu(m);
                     m->menu       = (const menu_item_t*)it->target;
                     m->menu_count = 0;
-                    /* 计算子菜单条目数 (哨兵法: 遍历直到 title==NULL) */
                     {
                         const menu_item_t *p = (const menu_item_t*)it->target;
                         while (p->title) { m->menu_count++; p++; }
+                    }
+                    /* 进入按键重映射菜单时初始化临时缓冲 */
+                    if ((const void*)it->target == (const void*)menu_remap) {
+                        memcpy(g_btn_remap_tmp, g_btn_remap, 6);
                     }
                     m->cursor   = 0;
                     m->scroll_offset = 0;
@@ -363,7 +446,16 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                 }
 
                 case MENU_TYPE_ACTION:
-                    if (it->id == 8) {
+                    if (it->id == 80) {
+                        /* 恢复 PID 出厂默认值 */
+                        pid_set_gains(&g_pid_speed,   DEFAULT_SPEED_KP,   DEFAULT_SPEED_KI, DEFAULT_SPEED_KD);
+                        pid_set_gains(&g_pid_pos,     DEFAULT_POS_KP,     0.0f, 0.0f);
+                        pid_set_gains(&g_pid_heading, DEFAULT_HEADING_KP,  0.0f, 0.0f);
+                        pid_set_gains(&g_pid_steer,   DEFAULT_STEER_KP,   0.0f, DEFAULT_STEER_KD);
+                        g_target_speed = DEFAULT_TARGET_SPEED;
+                        extern void BSP_UART_tx_str(const char*);
+                        BSP_UART_tx_str("[PID] Reset to defaults\r\n");
+                    } else if (it->id == 8 || it->id == 106) {
                         /* Save to Flash — 确认 */
                         m->screen = SCREEN_CONFIRM;
                         m->confirm_msg = "Save to Flash?";
@@ -375,6 +467,36 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
                         m->task_id = it->id + 1;
                         m->lap = 0;
                         m->elapsed_ms = 0;
+                        m->needs_full_redraw = true;
+                    } else if (it->id >= 100 && it->id <= 105) {
+                        /* 按键重映射: 循环切换逻辑方向 (编辑临时缓冲, 保存后才应用) */
+                        uint8_t idx = (uint8_t)(it->id - 100);
+                        g_btn_remap_tmp[idx] = (g_btn_remap_tmp[idx] + 1) % 6;
+                    } else if (it->id >= 110 && it->id <= 114) {
+                        /* 电机配置: 切换方向/极性 (+1 ↔ -1 或 true ↔ false) */
+                        extern int8_t  g_motor_a_dir, g_motor_b_dir;
+                        extern int8_t  g_enc1_pol, g_enc2_pol;
+                        extern bool    g_motor_a_left;
+                        switch (it->id) {
+                        case 110: g_motor_a_dir   = -g_motor_a_dir;   break;
+                        case 111: g_motor_b_dir   = -g_motor_b_dir;   break;
+                        case 112: g_enc1_pol       = -g_enc1_pol;      break;
+                        case 113: g_enc2_pol       = -g_enc2_pol;      break;
+                        case 114: g_motor_a_left   = !g_motor_a_left;  break;
+                        }
+                    } else if (it->id == 115) {
+                        /* Save motor config to Flash */
+                        extern flash_config_t g_flash_cfg;
+                        extern int8_t g_motor_a_dir, g_motor_b_dir;
+                        extern int8_t g_enc1_pol, g_enc2_pol;
+                        extern bool g_motor_a_left;
+                        g_flash_cfg.motor_a_direction = g_motor_a_dir;
+                        g_flash_cfg.motor_b_direction = g_motor_b_dir;
+                        g_flash_cfg.enc1_polarity     = g_enc1_pol;
+                        g_flash_cfg.enc2_polarity     = g_enc2_pol;
+                        g_flash_cfg.motor_a_is_left   = (uint8_t)g_motor_a_left;
+                        m->screen = SCREEN_CONFIRM;
+                        m->confirm_msg = "Save Motor Config?";
                         m->needs_full_redraw = true;
                     }
                     return true;
@@ -409,15 +531,27 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
 
 /* ══════════ 渲染入口 ══════════ */
 
+/* 全屏清除: 40 行/块 DMA, 无 vTaskDelay 避免撕裂 */
+static void clear_screen_chunked(void)
+{
+    const uint16_t CHUNK = 40;
+    ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
+    for (uint16_t y = 0; y < ST7789_HEIGHT; y += CHUNK) {
+        uint16_t h = (y + CHUNK <= ST7789_HEIGHT) ? CHUNK : ST7789_HEIGHT - y;
+        ST7789_clearRawDMA(BLACK, ST7789_WIDTH, h);
+    }
+}
+
 void menu_render(const menu_state_t *m, const sensor_data_t *sensor,
                  float kf_x, float kf_y, float kf_theta)
 {
-    /* 屏幕切换时全屏清除, 避免旧内容残留 */
+    /* 屏幕或菜单切换时清屏 */
     static screen_type_t prev_screen = SCREEN_STATUS;
-    if (m->screen != prev_screen) {
+    static const void    *prev_menu = NULL;
+    if (m->screen != prev_screen || m->menu != prev_menu) {
         prev_screen = m->screen;
-        ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-        ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT);
+        prev_menu   = m->menu;
+        clear_screen_chunked();
     }
 
     switch (m->screen) {
@@ -600,15 +734,45 @@ static void render_menu(const menu_state_t *m)
     for (int i = 0; i < visible; i++) {
         int idx = m->scroll_offset + i;
         if (idx >= (int)m->menu_count) break;
-        render_menu_row(y, m->menu[idx].title, (idx == m->cursor));
+
+        /* 按键重映射 / 电机配置: 追加当前值 */
+        char title_buf[28];
+        const char *display_title = m->menu[idx].title;
+        if (m->menu == menu_remap && idx < 6) {
+            const char *dirs[] = {"UP","DN","LT","RT","ENT","BACK"};
+            int p = 0;
+            while (m->menu[idx].title[p] && p < 20) { title_buf[p] = m->menu[idx].title[p]; p++; }
+            title_buf[p++] = ' ';
+            const char *d = dirs[g_btn_remap_tmp[idx] < 6 ? g_btn_remap_tmp[idx] : 0];
+            while (*d && p < 27) title_buf[p++] = *d++;
+            title_buf[p] = 0;
+            display_title = title_buf;
+        } else if (m->menu == menu_motor && idx < 5) {
+            extern int8_t g_motor_a_dir, g_motor_b_dir;
+            extern int8_t g_enc1_pol, g_enc2_pol;
+            extern bool g_motor_a_left;
+            int p = 0;
+            while (m->menu[idx].title[p] && p < 20) { title_buf[p] = m->menu[idx].title[p]; p++; }
+            title_buf[p++] = ' ';
+            const char *val = "?";
+            switch (idx) {
+            case 0: val = (g_motor_a_dir > 0) ? "FWD" : "REV"; break;
+            case 1: val = (g_motor_b_dir > 0) ? "FWD" : "REV"; break;
+            case 2: val = (g_enc1_pol > 0)   ? "+"   : "-";   break;
+            case 3: val = (g_enc2_pol > 0)   ? "+"   : "-";   break;
+            case 4: val = g_motor_a_left     ? "LEFT" : "RIGHT"; break;
+            }
+            while (*val && p < 27) title_buf[p++] = *val++;
+            title_buf[p] = 0;
+            display_title = title_buf;
+        }
+
+        render_menu_row(y, display_title, (idx == m->cursor));
         y += MENU_ROW_H;
     }
 
-    /* 清空剩余区域 */
-    if (y < ST7789_HEIGHT) {
-        ST7789_setWindows(0, y, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-        ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT - y);
-    }
+    /* 不清底部 — clearRawDMA 大区域耗时太长会饿死 Button 任务
+     * 屏幕切换时 menu_render 的 full-clear 已经移除, 各屏各自逐行清即可 */
 }
 
 /* ══════════ SCREEN_VALUE_EDIT ══════════ */
@@ -627,7 +791,7 @@ static void render_value_edit(const menu_state_t *m)
     ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8 * 2);
     ST7789_drawStringFast(10, FH8 * 4, buf, Font12_Table, FW12, 12, CYAN, BLACK);
 
-    const char *hint = "UP/DN:fine  L/R:coarse  ENT:ok";
+    const char *hint = "UP/R:+  DN/L:-  ENT:ok";
     ST7789_drawStringFast(0, FH8 * 8, hint, Font8_Table, FW8, 8, WHITE, BLACK);
 }
 
@@ -640,7 +804,7 @@ static void render_confirm(const menu_state_t *m)
 
     ST7789_drawStringFast(10, FH8 * 4, m->confirm_msg ? m->confirm_msg : "Confirm?",
                           Font12_Table, FW12, 12, YELLOW, BLACK);
-    ST7789_drawStringFast(10, FH8 * 6, "[LEFT]=Yes  [RIGHT]=No",
+    ST7789_drawStringFast(10, FH8 * 6, "[ENTER]=Yes  [BACK]=No",
                           Font8_Table, FW8, 8, WHITE, BLACK);
 }
 
@@ -649,35 +813,46 @@ static void render_confirm(const menu_state_t *m)
 static void render_contest(const menu_state_t *m)
 {
     char buf[28];
-    ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-    ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT);
+    static char cac_label[16], cac_lap[16], cac_time[16], cac_spd[16], cac_head[16];
 
     int y = FH8;
 
     /* 任务名 */
     {
         const char *tasks[] = {"","Task1: A->B","Task2: 1 Lap","Task3: Diag","Task4: 4Lap"};
-        ST7789_drawStringFast(0, y, tasks[m->task_id & 3],
-                              Font8_Table, FW8, 8, GREEN, BLACK);
+        const char *t = tasks[m->task_id & 3];
+        if (strcmp(t, cac_label)) {
+            strcpy(cac_label, t);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, t, Font8_Table, FW8, 8, GREEN, BLACK);
+        }
         y += FH8 * 2;
     }
 
     /* 圈数 */
     {
-        int p = 0;
-        p += snprintf(buf, sizeof(buf), "Lap: %u", m->lap);
-        (void)p;
-        ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        snprintf(buf, sizeof(buf), "Lap: %u", m->lap);
+        if (strcmp(buf, cac_lap)) {
+            strcpy(cac_lap, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        }
         y += FH8 * 2;
     }
 
-    /* 时间 */
+    /* 时间 (每帧都更新) */
     {
         uint32_t sec = m->elapsed_ms / 1000;
         uint32_t ms  = m->elapsed_ms % 1000;
-        int p = snprintf(buf, sizeof(buf), "Time: %u.%03u s", (unsigned)sec, (unsigned)ms);
-        (void)p;
-        ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, YELLOW, BLACK);
+        snprintf(buf, sizeof(buf), "Time: %u.%03u s", (unsigned)sec, (unsigned)ms);
+        if (strcmp(buf, cac_time)) {
+            strcpy(cac_time, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, YELLOW, BLACK);
+        }
         y += FH8 * 2;
     }
 
@@ -685,10 +860,14 @@ static void render_contest(const menu_state_t *m)
     {
         int p = 0;
         p += util_ftoa(m->cur_speed, 1, buf + p);
-        buf[p++] = 'm'; buf[p++] = 'm'; buf[p++] = '/'; buf[p++] = 's';
         buf[p] = 0;
-        ST7789_drawStringFast(0, y, "Spd:", Font8_Table, FW8, 8, CYAN, BLACK);
-        ST7789_drawStringFast(60, y, buf, Font8_Table, FW8, 8, CYAN, BLACK);
+        if (strcmp(buf, cac_spd)) {
+            strcpy(cac_spd, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0,  y, "Spd:", Font8_Table, FW8, 8, CYAN, BLACK);
+            ST7789_drawStringFast(60, y, buf, Font8_Table, FW8, 8, CYAN, BLACK);
+        }
         y += FH8 * 2;
     }
 
@@ -697,13 +876,22 @@ static void render_contest(const menu_state_t *m)
         int p = 0;
         p += util_ftoa(m->cur_heading, 1, buf + p);
         buf[p] = 0;
-        ST7789_drawStringFast(0, y, "Head:", Font8_Table, FW8, 8, WHITE, BLACK);
-        ST7789_drawStringFast(60, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        if (strcmp(buf, cac_head)) {
+            strcpy(cac_head, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0,  y, "Head:", Font8_Table, FW8, 8, WHITE, BLACK);
+            ST7789_drawStringFast(60, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        }
     }
 
-    /* 提示 */
-    ST7789_drawStringFast(0, ST7789_HEIGHT - FH8 - 2, "[BACK] Stop",
-                          Font8_Table, FW8, 8, MAGENTA, BLACK);
+    /* 提示 (每帧重绘, 仅一行开销可接受) */
+    {
+        y = ST7789_HEIGHT - FH8 - 2;
+        ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+        ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+        ST7789_drawStringFast(0, y, "[BACK] Stop", Font8_Table, FW8, 8, MAGENTA, BLACK);
+    }
 }
 
 /* ══════════ SCREEN_INFO ══════════ */
@@ -716,46 +904,46 @@ static void render_info(const menu_state_t *m, float kf_x, float kf_y,
 {
     (void)m;
     char buf[32];
-
-    ST7789_setWindows(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-    ST7789_clearRawDMA(BLACK, ST7789_WIDTH, ST7789_HEIGHT);
-
+    static char cac_heap[16], cac_kf[32], cac_kf2[32];
     int y = FH8;
+
+    /* 静态标题 (只绘一次, clear_screen_chunked 已清屏) */
     ST7789_drawStringFast(0, y, "=== System Info ===", Font8_Table, FW8, 8, GREEN, BLACK);
     y += FH8 * 2;
-
-    /* 版本 */
     ST7789_drawStringFast(0, y, "FW: v2.0-car-svc", Font8_Table, FW8, 8, WHITE, BLACK);
     y += FH8;
-
-    /* Flash ID */
     ST7789_drawStringFast(0, y, "Flash: W25Q128", Font8_Table, FW8, 8, WHITE, BLACK);
     y += FH8;
 
-    /* Free heap */
+    /* 动态: heap */
     {
         size_t heap = xPortGetFreeHeapSize();
-        int p = snprintf(buf, sizeof(buf), "Heap free: %u B", (unsigned)heap);
-        (void)p;
-        ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        snprintf(buf, sizeof(buf), "Heap: %u B", (unsigned)heap);
+        if (strcmp(buf, cac_heap)) {
+            strcpy(cac_heap, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        }
         y += FH8;
     }
 
-    /* Kalman 状态 */
+    /* Kalman */
     {
-        ST7789_drawStringFast(0, y, "Kalman:", Font8_Table, FW8, 8, CYAN, BLACK);
-        y += FH8;
-        snprintf(buf, sizeof(buf), "  x=%.0f y=%.0f", kf_x, kf_y);
-        ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        snprintf(buf, sizeof(buf), "Kalman: x=%.0f y=%.0f", kf_x, kf_y);
+        if (strcmp(buf, cac_kf)) {
+            strcpy(cac_kf, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        }
         y += FH8;
         snprintf(buf, sizeof(buf), "  th=%.1f deg", kf_theta * 57.29578f);
-        ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
-        y += FH8;
-    }
-
-    /* 任务栈高水位 */
-    {
-        y += FH8;
-        ST7789_drawStringFast(0, y, "Stacks: (TBD)", Font8_Table, FW8, 8, CYAN, BLACK);
+        if (strcmp(buf, cac_kf2)) {
+            strcpy(cac_kf2, buf);
+            ST7789_setWindows(0, y, ST7789_WIDTH - 1, y + FH8 - 1);
+            ST7789_clearRawDMA(BLACK, ST7789_WIDTH, FH8);
+            ST7789_drawStringFast(0, y, buf, Font8_Table, FW8, 8, WHITE, BLACK);
+        }
     }
 }

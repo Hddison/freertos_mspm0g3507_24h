@@ -33,7 +33,7 @@
 #define FLASH_CONFIG_MAGIC      0x4D53504DUL   /* "MSPM" */
 #define FLASH_CONFIG_VERSION    1
 #define FLASH_CONFIG_ADDR       0x00000000UL   /* Sector 0 */
-#define FLASH_CONFIG_SIZE       80
+#define FLASH_CONFIG_SIZE       sizeof(flash_config_t)
 
 /* ── 标志位 ── */
 #define FLASH_FLAG_CALIBRATED   0x01
@@ -58,10 +58,15 @@ typedef struct __attribute__((packed, aligned(4))) {
     float    imu_roll_offset;
     uint16_t gray_threshold;
     uint8_t  buzzer_enabled;
-    uint8_t  _pad0;
+    /* ── 电机配置 (v2) ── */
+    int8_t   motor_a_direction;   /* +1=正PWM=前进, -1=反转 */
+    int8_t   motor_b_direction;
+    int8_t   enc1_polarity;       /* +1 / -1 编码器方向修正 */
+    int8_t   enc2_polarity;
+    uint8_t  motor_a_is_left;     /* 1 = Motor A 是左轮, 0 = 右轮 */
     uint32_t lap_times[4];
-    uint8_t  _pad1[8];   /* filler to align checksum */
-    uint32_t checksum;   /* XOR of all preceding bytes (excluding this field) */
+    uint8_t  _pad1[3];   /* filler to align checksum */
+    uint32_t checksum;
 } flash_config_t;
 
 /* ── API ── */

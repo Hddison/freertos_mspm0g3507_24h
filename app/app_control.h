@@ -18,7 +18,8 @@
 #include <stdbool.h>
 #include "app_pid.h"
 #include "app_kalman.h"
-#include "task_button.h"   /* ctrl_cmd_t */
+#include "app_flash.h"      /* flash_config_t */
+#include "task_button.h"    /* ctrl_cmd_t */
 
 /* ── 控制模式 ── */
 typedef enum {
@@ -72,6 +73,7 @@ extern volatile int g_ctrl_mode;
 
 /* ── API ── */
 void control_init(void);
+void control_load_from_flash(const flash_config_t *cfg);
 void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw);
 void control_start_task(uint8_t task_id);
 void control_estop(void);

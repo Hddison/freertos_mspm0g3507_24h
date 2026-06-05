@@ -6,6 +6,7 @@
 #include "app_flash.h"
 #include "app_config.h"
 
+#include "bsp_button.h"   /* BTN_DIR_* */
 #include "hal_spi.h"
 #include "hw_w25q128.h"
 #include <stddef.h>   /* offsetof */
@@ -35,17 +36,31 @@ bool flash_config_load(flash_config_t *cfg)
     bool ok = HW_W25Q128_read(buf, FLASH_CONFIG_ADDR, FLASH_CONFIG_SIZE);
     HAL_SPI_unlock();
 
-    if (!ok) return false;
+    if (!ok) {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Read FAILED\r\n");
+        return false;
+    }
 
     memcpy(cfg, buf, FLASH_CONFIG_SIZE);
 
     /* 验证 magic */
-    if (cfg->magic != FLASH_CONFIG_MAGIC) return false;
+    if (cfg->magic != FLASH_CONFIG_MAGIC) {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Bad magic\r\n");
+        return false;
+    }
 
     /* 验证 checksum */
     uint32_t expected = cfg->checksum;
     uint32_t computed = compute_checksum(cfg);
-    if (expected != computed) return false;
+    if (expected != computed) {
+        extern void BSP_UART_tx_str(const char*);
+        char tmp[32];
+        tmp[0] = 'e'; tmp[1] = 'x'; tmp[2] = 'p'; tmp[3] = '='; tmp[4] = 0;
+        BSP_UART_tx_str("[FLASH] Bad cksum exp=... comp=...\r\n");
+        return false;
+    }
 
     return true;
 }
@@ -63,18 +78,35 @@ bool flash_config_save(const flash_config_t *cfg)
     /* 获取 SPI 锁, 擦除 Sector 0 */
     HAL_SPI_lock();
 
-    bool ok = HW_W25Q128_eraseSector(0);  /* Sector 0 = addr 0x000000 */
+    {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Erasing sector 0...\r\n");
+    }
+    bool ok = HW_W25Q128_eraseSector(0);
     if (!ok) {
-        /* Flash 擦除忙等待期间会释放 SPI 锁 */
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Erase FAILED\r\n");
         HAL_SPI_unlock();
         return false;
     }
 
-    /* 写入配置 (最大 256 字节, 一页内) */
+    /* 写入配置 */
+    {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Writing...\r\n");
+    }
     ok = HW_W25Q128_write((const uint8_t*)&local, FLASH_CONFIG_ADDR,
                           FLASH_CONFIG_SIZE);
 
     HAL_SPI_unlock();
+
+    if (ok) {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Save OK\r\n");
+    } else {
+        extern void BSP_UART_tx_str(const char*);
+        BSP_UART_tx_str("[FLASH] Write FAILED\r\n");
+    }
     return ok;
 }
 
@@ -87,13 +119,13 @@ void flash_config_defaults(flash_config_t *cfg)
     cfg->magic   = FLASH_CONFIG_MAGIC;
     cfg->version = FLASH_CONFIG_VERSION;
 
-    /* 按键重映射: 默认 1:1 */
-    cfg->btn_remap[0] = 0;  /* UP     → UP    */
-    cfg->btn_remap[1] = 1;  /* LEFT   → LEFT  */
-    cfg->btn_remap[2] = 2;  /* DOWN   → DOWN  */
-    cfg->btn_remap[3] = 3;  /* RIGHT  → RIGHT */
-    cfg->btn_remap[4] = 4;  /* CENTER → ENTER */
-    cfg->btn_remap[5] = 5;  /* BUTTON → BACK  */
+    /* 按键重映射: 物理布局匹配逻辑方向 */
+    cfg->btn_remap[0] = BTN_DIR_RIGHT; /* UP     → RIGHT */
+    cfg->btn_remap[1] = BTN_DIR_UP;    /* LEFT   → UP    */
+    cfg->btn_remap[2] = BTN_DIR_LEFT;  /* DOWN   → LEFT  */
+    cfg->btn_remap[3] = BTN_DIR_DOWN;  /* RIGHT  → DOWN  */
+    cfg->btn_remap[4] = BTN_DIR_ENTER; /* CENTER → ENTER */
+    cfg->btn_remap[5] = BTN_DIR_BACK;  /* BUTTON → BACK  */
 
     /* PID 默认值 */
     cfg->speed_kp    = DEFAULT_SPEED_KP;
@@ -115,6 +147,13 @@ void flash_config_defaults(flash_config_t *cfg)
     /* 蜂鸣器默认开启 */
     cfg->buzzer_enabled = 1;
     cfg->flags = FLASH_FLAG_BUZZER_EN;
+
+    /* 电机方向 & 编码器极性 (默认 1: 正向不反转, 电机A=左轮) */
+    cfg->motor_a_direction = 1;
+    cfg->motor_b_direction = 1;
+    cfg->enc1_polarity      = 1;
+    cfg->enc2_polarity      = 1;
+    cfg->motor_a_is_left    = 1;
 
     /* 圈速清零 */
     memset(cfg->lap_times, 0, sizeof(cfg->lap_times));

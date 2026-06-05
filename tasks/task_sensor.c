@@ -293,16 +293,27 @@ void vTaskSensor(void *pvParameters)
                             }
                         }
                     }
-                    /* 快捷数字键: 1=A+200, 2=A-200, 3=B+200, 4=B-200, 5=双轮+200, 0=全停 */
-                    else if (uart_buf[0] >= '0' && uart_buf[0] <= '6' && uart_buf[1] == 0) {
+                    /* 单字节命令 (避免多字节 UART 丢字符) */
+                    else if (uart_buf[1] == 0) {
                         switch (uart_buf[0]) {
-                        case '1': Motor_set( 200,   0); BSP_UART_tx_str("[MTR] A FWD +200\r\n"); break;
-                        case '2': Motor_set(-200,   0); BSP_UART_tx_str("[MTR] A REV -200\r\n"); break;
-                        case '3': Motor_set(   0, 200); BSP_UART_tx_str("[MTR] B FWD +200\r\n"); break;
-                        case '4': Motor_set(   0,-200); BSP_UART_tx_str("[MTR] B REV -200\r\n"); break;
+                        case '1': Motor_set( 200,   0); BSP_UART_tx_str("[MTR] A +200\r\n"); break;
+                        case '2': Motor_set(-200,   0); BSP_UART_tx_str("[MTR] A -200\r\n"); break;
+                        case '3': Motor_set(   0, 200); BSP_UART_tx_str("[MTR] B +200\r\n"); break;
+                        case '4': Motor_set(   0,-200); BSP_UART_tx_str("[MTR] B -200\r\n"); break;
                         case '5': Motor_set( 200, 200); BSP_UART_tx_str("[MTR] BOTH +200\r\n"); break;
                         case '6': Motor_set(-200,-200); BSP_UART_tx_str("[MTR] BOTH -200\r\n"); break;
                         case '0': Motor_set(   0,   0); BSP_UART_tx_str("[MTR] STOP\r\n"); break;
+                        case 'e': {
+                            char tmp[64]; int p=0;
+                            p+=util_itoa(Motor_enc1(),tmp+p); tmp[p++]=' ';
+                            p+=util_itoa(Motor_enc2(),tmp+p); tmp[p++]=' ';
+                            p+=util_itoa(g_enc1_speed,tmp+p); tmp[p++]=' ';
+                            p+=util_itoa(g_enc2_speed,tmp+p);
+                            tmp[p]=0;
+                            BSP_UART_tx_str("[MTR] ENC1 ENC2 SPD1 SPD2: ");
+                            BSP_UART_tx_str(tmp); BSP_UART_tx_str("\r\n");
+                            break;
+                        }
                         }
                     }
                 } else if (uart_idx < 15) {

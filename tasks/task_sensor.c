@@ -76,6 +76,8 @@ void vTaskSensor(void *pvParameters)
     /* ── 初始化传感器 ── */
     BSP_I2C_init();
     JY61P_init();        /* 配置 IMU: 200Hz, 加速度+角度模式 */
+    /* 陀螺自动校准: 静止 500ms, 角速度变化 < 10 (≈0.6°/s) → 自动归零 */
+    JY61P_set_gyro_autocal(10, 500);
 
     /* ── 初始化 Kalman (起点 A 为原点) ── */
     kalman5_init(&g_kf, VERTEX_A_X, VERTEX_A_Y, 0.0f);  /* 朝东, heading=0 */

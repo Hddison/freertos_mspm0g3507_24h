@@ -127,3 +127,51 @@ void JY61P_updateTotalYaw(int16_t raw)
     total_yaw_raw += delta;
     prev_yaw_raw   = raw;
 }
+
+/* ══════ 校准 API ══════ */
+
+bool JY61P_zero_yaw(void)
+{
+    return _write(JY61P_REG_KEY,  JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_CALSW, JY61P_CAL_YAW_ZERO)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_SAVE,  JY61P_SAVE)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK);
+}
+
+bool JY61P_cal_acc(void)
+{
+    return _write(JY61P_REG_KEY,  JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_CALSW, JY61P_CAL_ACC)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_SAVE,  JY61P_SAVE)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK);
+}
+
+bool JY61P_set_gyro_autocal(uint16_t threshold, uint16_t time_ms)
+{
+    return _write(JY61P_REG_KEY,         JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_GYROCALITHR, threshold)
+        && _write(JY61P_REG_KEY,         JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_GYROCALTIME, time_ms)
+        && _write(JY61P_REG_KEY,         JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_SAVE,        JY61P_SAVE)
+        && _write(JY61P_REG_KEY,         JY61P_KEY_UNLOCK);
+}
+
+bool JY61P_set_angle_ref(void)
+{
+    return _write(JY61P_REG_KEY,  JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_CALSW, JY61P_CAL_REF)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK)
+        && _write(JY61P_REG_SAVE,  JY61P_SAVE)
+        && _write(JY61P_REG_KEY,   JY61P_KEY_UNLOCK);
+}
+
+bool JY61P_read_acc_offset(int16_t *ax, int16_t *ay, int16_t *az)
+{
+    return ax && ay && az
+        && _read(JY61P_REG_AXOFFSET, ax)
+        && _read(JY61P_REG_AYOFFSET, ay)
+        && _read(JY61P_REG_AZOFFSET, az);
+}

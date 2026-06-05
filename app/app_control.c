@@ -121,8 +121,8 @@ void control_init(void)
              DEFAULT_SPEED_KD, DEFAULT_SPEED_I_LIM, PWM_MAX);
     pid_init(&g_pid_pos,     DEFAULT_POS_KP,     0.0f,
              0.0f,            DEFAULT_POS_I_LIM,  DEFAULT_TARGET_SPEED);
-    pid_init(&g_pid_heading, DEFAULT_HEADING_KP,  0.0f,
-             0.0f,            DEFAULT_HEADING_I_LIM, PWM_MAX);
+    pid_init(&g_pid_heading, DEFAULT_HEADING_KP,  DEFAULT_HEADING_KI,
+             DEFAULT_HEADING_KD, DEFAULT_HEADING_I_LIM, PWM_MAX);
     pid_init(&g_pid_steer,   DEFAULT_STEER_KP,    0.0f,
              DEFAULT_STEER_KD, DEFAULT_STEER_I_LIM, PWM_MAX);
 
@@ -138,7 +138,7 @@ void control_load_from_flash(const flash_config_t *cfg)
 {
     pid_set_gains(&g_pid_speed,   cfg->speed_kp,  cfg->speed_ki,  cfg->speed_kd);
     pid_set_gains(&g_pid_pos,     cfg->pos_kp,    0.0f,            0.0f);
-    pid_set_gains(&g_pid_heading, cfg->heading_kp, 0.0f,            0.0f);
+    pid_set_gains(&g_pid_heading, cfg->heading_kp, cfg->heading_ki, cfg->heading_kd);
     pid_set_gains(&g_pid_steer,   cfg->steer_kp,  0.0f,            cfg->steer_kd);
     g_target_speed = cfg->target_speed;
 }
@@ -255,7 +255,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
         if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
         if (abs(right) < PWM_DEAD_ZONE) right = 0;
 
-        Motor_set(left, right);
+        Motor_set(left, -right); /* B=REV */
 
         /* 到点判定 */
         if (dist < VERTEX_ARRIVAL_DIST) {
@@ -286,7 +286,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw)
         if (abs(left)  < PWM_DEAD_ZONE) left  = 0;
         if (abs(right) < PWM_DEAD_ZONE) right = 0;
 
-        Motor_set(left, right);
+        Motor_set(left, -right); /* B=REV */
 
         /* 出线检测: 连续丢失 N 个周期 → 切换到 POSITION 到达目标 */
         if (g_comp.line_detected) {

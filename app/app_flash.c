@@ -135,6 +135,8 @@ void flash_config_defaults(flash_config_t *cfg)
     cfg->steer_kp    = DEFAULT_STEER_KP;
     cfg->steer_kd    = DEFAULT_STEER_KD;
     cfg->heading_kp  = DEFAULT_HEADING_KP;
+    cfg->heading_ki  = DEFAULT_HEADING_KI;
+    cfg->heading_kd  = DEFAULT_HEADING_KD;
     cfg->target_speed = DEFAULT_TARGET_SPEED;
 
     /* 校准默认值 */

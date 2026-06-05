@@ -29,12 +29,19 @@
 #define JY61P_REG_KEY       0x69
 #define JY61P_REG_VER       0x2E
 #define JY61P_REG_IIC       0x1A
+#define JY61P_REG_GYROCALITHR 0x61
+#define JY61P_REG_GYROCALTIME 0x63
+#define JY61P_REG_AXOFFSET  0x05
+#define JY61P_REG_AYOFFSET  0x06
+#define JY61P_REG_AZOFFSET  0x07
 
 /* 命令 */
 #define JY61P_KEY_UNLOCK    0xB588
 #define JY61P_RRATE_200HZ   0x000B
 #define JY61P_RSW_ACC_ANG   0x000E
-#define JY61P_CAL_REF       0x0008
+#define JY61P_CAL_ACC       0x0001   /* 自动加计校准 */
+#define JY61P_CAL_YAW_ZERO  0x0004   /* 航向角置零 */
+#define JY61P_CAL_REF       0x0008   /* 设置角度参考 */
 #define JY61P_SAVE          0x0000
 
 /* 转换 */
@@ -81,5 +88,22 @@ static inline void JY61P_convAngle(const JY61P_RawAngle *r, JY61P_Angle *a)
     a->pitch = (float)r->pitch * JY61P_ANG_SCALE;
     a->yaw   = (float)r->yaw   * JY61P_ANG_SCALE;
 }
+
+/* ── 校准 API ── */
+
+/* 航向角置零: CALSW=0x04 → SAVE, 仅重置偏航 (横滚/俯仰不变) */
+bool JY61P_zero_yaw(void);
+
+/* 加速度计自动校准: CALSW=0x01 → SAVE, IMU 自检加计零偏写入 OFFSET */
+bool JY61P_cal_acc(void);
+
+/* 设置陀螺自动校准参数: 角速度变化 < threshold, 持续 time_ms → 归零 */
+bool JY61P_set_gyro_autocal(uint16_t threshold, uint16_t time_ms);
+
+/* 设置角度参考: CALSW=0x08 (横滚+俯仰+偏航全部归零) */
+bool JY61P_set_angle_ref(void);
+
+/* 读取加速度计零偏 (AXOFFSET/AYOFFSET/AZOFFSET, 调试用) */
+bool JY61P_read_acc_offset(int16_t *ax, int16_t *ay, int16_t *az);
 
 #endif

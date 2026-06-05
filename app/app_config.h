@@ -41,7 +41,7 @@
 #define ENCODER_PPR         500U    /* 编码器脉冲/转                */
 #define GEARBOX_RATIO       20.0f   /* 减速比 1:20                  */
 #define WHEEL_DIAMETER_MM   48.0f   /* 轮径 (mm)                   */
-#define WHEEL_BASE_MM       120.0f  /* 轮距 (左右轮中心间距, mm)    */
+#define WHEEL_BASE_MM       132.0f  /* 轮距 (左右轮中心间距, mm)    */
 
 /* 距离系数: 每编码器计数值对应的行进距离 (mm/count) */
 /* DIST = π·D / (PPR × 减速比 × 2x解码) */
@@ -107,6 +107,8 @@
 
 /* 航向 PID (heading hold 辅助) */
 #define DEFAULT_HEADING_KP   8.0f
+#define DEFAULT_HEADING_KI   0.05f
+#define DEFAULT_HEADING_KD   1.0f
 #define DEFAULT_HEADING_I_LIM 400.0f
 
 /* 曲率→差速增益 (steer_pwm = curvature * v * GAIN) */

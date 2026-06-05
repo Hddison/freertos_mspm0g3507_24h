@@ -53,6 +53,8 @@ typedef struct __attribute__((packed, aligned(4))) {
     float    steer_kp;
     float    steer_kd;
     float    heading_kp;
+    float    heading_ki;
+    float    heading_kd;
     float    target_speed;
     float    imu_yaw_offset;
     float    imu_roll_offset;

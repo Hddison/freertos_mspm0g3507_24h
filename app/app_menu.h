@@ -28,7 +28,12 @@ typedef enum {
     SCREEN_VALUE_EDIT,
     SCREEN_CONFIRM,
     SCREEN_CONTEST,
-    SCREEN_INFO
+    SCREEN_INFO,
+    SCREEN_DEBUG_SENSOR,
+    SCREEN_DEBUG_KALMAN,
+    SCREEN_DEBUG_PID,
+    SCREEN_DEBUG_SLIP,
+    SCREEN_DEBUG_HEADING
 } screen_type_t;
 
 /* ── 菜单项类型 ── */
@@ -118,7 +123,5 @@ float* menu_get_pid_ptr(int pid_id);
 
 /* 保存回调 (供菜单 ACTION 绑定) */
 void menu_action_save(void);
-void menu_action_imu_zero_yaw(void);
-void menu_action_imu_zero_roll(void);
 
 #endif /* APP_MENU_H */

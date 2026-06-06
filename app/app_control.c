@@ -75,11 +75,14 @@ static const path_segment_t path_task3[] = {
 static void advance_segment(void)
 {
     g_comp.active_segment++;
-    if (g_comp.active_segment >= g_comp.total_segments) {
-        /* Task 4: 检查是否需要多圈 */
+    const path_segment_t *seg = &g_comp.segments[g_comp.active_segment];
+
+    /* CTRL_COMPLETE: 多圈检查 — 在加载段之前判, 否则 COMPLETE 段吞掉多圈 */
+    if (seg->mode == CTRL_COMPLETE) {
         if (g_comp.task_id == 4 && g_comp.lap < g_comp.total_laps - 1) {
             g_comp.lap++;
-            g_comp.active_segment = 0;  /* 重新开始 */
+            g_comp.active_segment = 0;
+            seg = &g_comp.segments[0];
         } else {
             g_comp.mode = CTRL_COMPLETE;
             g_ctrl_mode = CTRL_COMPLETE;
@@ -88,7 +91,6 @@ static void advance_segment(void)
         }
     }
 
-    const path_segment_t *seg = &g_comp.segments[g_comp.active_segment];
     g_comp.mode           = seg->mode;
     g_ctrl_mode            = seg->mode;
     g_comp.segment_start_tick = g_comp.elapsed_ms;
@@ -100,10 +102,6 @@ static void advance_segment(void)
     if (seg->mode == CTRL_POSITION) {
         g_comp.segment_target_hdg = seg->target_heading * 57.29578f;  /* rad→° */
         g_comp.segment_distance   = seg->seg_dist;
-    }
-
-    if (seg->mode == CTRL_COMPLETE) {
-        Motor_set(0, 0);
     }
 }
 

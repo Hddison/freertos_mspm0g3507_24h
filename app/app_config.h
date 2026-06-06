@@ -111,13 +111,13 @@
 #define DEFAULT_POS_I_LIM    300.0f  /* target_speed 限幅 (mm/s)   */
 
 /* 转向 PID (弧线循迹, 灰度质心→curvature) */
-#define DEFAULT_STEER_KP     15.0f
-#define DEFAULT_STEER_KD     3.0f
+#define DEFAULT_STEER_KP     58.73f
+#define DEFAULT_STEER_KD     1.28f
 #define DEFAULT_STEER_I_LIM  400.0f
 
 /* 航向 PID (heading hold 辅助) */
-#define DEFAULT_HEADING_KP   30.01f
-#define DEFAULT_HEADING_KI   20.01f
+#define DEFAULT_HEADING_KP   19.44f
+#define DEFAULT_HEADING_KI   12.71f
 #define DEFAULT_HEADING_KD   0.50f
 #define DEFAULT_HEADING_I_LIM 400.0f
 
@@ -125,7 +125,7 @@
 #define CURVATURE_GAIN       0.05f
 
 /* 默认目标速度 (mm/s) */
-#define DEFAULT_TARGET_SPEED 300.0f
+#define DEFAULT_TARGET_SPEED 450.0f
 
 /* 速度曲线: 距目标此距离开始减速 (mm) */
 #define SPEED_RAMP_DIST      200.0f

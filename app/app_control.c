@@ -56,19 +56,57 @@ static const path_segment_t path_task2[] = {
 
 /* Task 3: A→C(对角)→右弧上行→B→D(对角)→左弧上行→A (8段) */
 static const path_segment_t path_task3[] = {
-    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.6747f,  0, 2},  /* A→C 东南 */
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.6747f,  0, 2},  /* A→C */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
-    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧上行 */
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
-    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.4569f,  0, 3},  /* B→D 西南 */
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1290, -2.4069f,  0, 3},  /* B→D */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
-    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧上行 */
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
     {CTRL_COMPLETE,     0, 0, 0, 0, 0, -1},
 };
 
-/* Task 4: 同 Task 3, 4 圈 */
-#define TASK4_LAPS 4
+/* Task 4: 4圈展开, 每圈可独立微调航向/距离 */
+static const path_segment_t path_task4[] = {
+    /* ── Lap 1 ── */
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.6747f,  0, 2},  /* A→C */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1290, -2.4069f,  0, 3},  /* B→D */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+    /* ── Lap 2 ── */
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.6047f,  0, 2},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1290, -2.3600f,  0, 3},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+    /* ── Lap 3 ── */
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.5750f,  0, 2},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1300, -2.3500f,  0, 3},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+    /* ── Lap 4 ── */
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.5550f,  0, 2},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1350, -2.3500f,  0, 3},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+};
+#define TASK4_LAPS 1  /* 不再用循环, 表已展开4圈 */
 
 /* ══════════ 段切换 ══════════ */
 
@@ -167,8 +205,8 @@ void control_start_task(uint8_t task_id)
         g_comp.total_laps    = 1;
         break;
     case 4:
-        g_comp.segments      = path_task3;  /* same path as task 3 */
-        g_comp.total_segments = sizeof(path_task3) / sizeof(path_segment_t);
+        g_comp.segments      = path_task4;
+        g_comp.total_segments = sizeof(path_task4) / sizeof(path_segment_t);
         g_comp.total_laps    = TASK4_LAPS;
         break;
     default:
@@ -256,7 +294,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
         break;
     }
 
-    /* ── 弧线循迹: 灰度质心 → 转向 ── */
+    /* ── 弧线循迹: 灰度质心23 → 转向 ── */
     case CTRL_LINE_TRACK: {
         /* 入线检测 */
         if (!g_comp.line_detected && gray_raw != 0) {

@@ -36,7 +36,8 @@ typedef struct {
     ctrl_mode_t mode;
     float target_x;          /* 目标 X (mm) — POSITION 模式 */
     float target_y;          /* 目标 Y (mm) */
-    float target_heading;    /* 参考航向 (rad) — LINE_TRACK 入线前 */
+    float seg_dist;          /* 段距离 (mm) */
+    float target_heading;    /* 目标航向 (rad) */
     int   arc_dir;           /* 弧线方向: +1=逆时针(右弧), -1=顺时针(左弧) */
     int   vertex_id;         /* 顶点编号: 0=A,1=B,2=C,3=D, -1=无 */
 } path_segment_t;

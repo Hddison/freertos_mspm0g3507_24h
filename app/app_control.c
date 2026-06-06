@@ -33,35 +33,36 @@ volatile int g_kf_vertex_trigger = -1;  /* 顶点修正触发: -1=无, 0=A,1=B,2
 
 /* Task 1: A→B (8段, 但只需前2段) */
 static const path_segment_t path_task1[] = {
-    {CTRL_POSITION,     VERTEX_B_X, VERTEX_B_Y, 0.0f,   0, 1},  /* A→B */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 1},                          /* B 点 */
-    {CTRL_COMPLETE,     0, 0, 0, 0, -1},
+    /* A(-500,400) → B(500,400): dx=1000,dy=0, heading=0, dist=1000 */
+    {CTRL_POSITION,     VERTEX_B_X, VERTEX_B_Y, 1000, 0.0f,     0, 1},
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_COMPLETE,     0, 0, 0, 0, 0, -1},
 };
 
 /* Task 2: A→B→右弧→C→D→左弧→A (顺时针1圈, 8段) */
 static const path_segment_t path_task2[] = {
-    {CTRL_POSITION,     VERTEX_B_X, VERTEX_B_Y, 0.0f,   0, 1},  /* A→B */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 1},                          /* B 点 */
-    {CTRL_LINE_TRACK,   VERTEX_C_X, VERTEX_C_Y, 0.0f,  1, -1},  /* B→C 右弧 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 2},                          /* C 点 */
-    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 3.14159f, 0, 3},/* C→D 西 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 3},                          /* D 点 */
-    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0.0f, -1, -1},  /* D→A 左弧 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0},                          /* A 点 */
-    {CTRL_COMPLETE,     0, 0, 0, 0, -1},
+    {CTRL_POSITION,     VERTEX_B_X, VERTEX_B_Y, 1000, 0.0f,     0, 1},  /* A→B */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_LINE_TRACK,   VERTEX_C_X, VERTEX_C_Y, 0,    0.0f,     1, -1},  /* B→C 右弧 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1000, 3.14159f, 0, 3},  /* C→D 西 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,    -1, -1},  /* D→A 左弧 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+    {CTRL_COMPLETE,     0, 0, 0, 0, 0, -1},
 };
 
 /* Task 3: A→C(对角)→右弧上行→B→D(对角)→左弧上行→A (8段) */
 static const path_segment_t path_task3[] = {
-    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, -0.6747f, 0, 2},/* A→C 东南 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 2},                          /* C 点 */
-    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0.0f,  1, -1},  /* C→B 右弧上行 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 1},                          /* B 点 */
-    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, -2.2469f, 0, 3},/* B→D 西南 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 3},                          /* D 点 */
-    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0.0f, -1, -1},  /* D→A 左弧上行 */
-    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0},                          /* A 点 */
-    {CTRL_COMPLETE,     0, 0, 0, 0, -1},
+    {CTRL_POSITION,     VERTEX_C_X, VERTEX_C_Y, 1280, -0.6747f,  0, 2},  /* A→C 东南 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
+    {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧上行 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.2469f,  0, 3},  /* B→D 西南 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
+    {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧上行 */
+    {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
+    {CTRL_COMPLETE,     0, 0, 0, 0, 0, -1},
 };
 
 /* Task 4: 同 Task 3, 4 圈 */
@@ -93,13 +94,10 @@ static void advance_segment(void)
     g_comp.line_lost_cnt  = 0;
     g_comp.line_detected  = false;
 
-    /* CTRL_POSITION: 入口锁死目标航向 + 段距离 (不依赖 Kalman 实时位置) */
+    /* CTRL_POSITION: 查表获取航向+距离 */
     if (seg->mode == CTRL_POSITION) {
-        extern volatile float g_kf_x, g_kf_y;
-        float dx = seg->target_x - g_kf_x;
-        float dy = seg->target_y - g_kf_y;
         g_comp.segment_target_hdg = seg->target_heading * 57.29578f;  /* rad→° */
-        g_comp.segment_distance   = sqrtf(dx*dx + dy*dy);
+        g_comp.segment_distance   = seg->seg_dist;
     }
 
     if (seg->mode == CTRL_COMPLETE) {
@@ -230,7 +228,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
 
         /* 距离: 编码器已走 → 剩余 */
         float enc_avg = (Motor_enc1Dist() + Motor_enc2Dist()) * 0.5f;
-        float traveled = enc_avg;
+        float traveled = enc_avg - g_comp.segment_start_dist;
         float remain   = g_comp.segment_distance - traveled;
 
         /* 速度曲线 */

@@ -406,6 +406,9 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
         return false;
     }
 
+extern kalman5_t g_kf;
+extern void slip_init(void);
+
     /* ── 竞赛屏 ── */
     if (m->screen == SCREEN_CONTEST) {
         extern volatile float g_kf_x, g_kf_y, g_kf_theta, g_kf_v, g_kf_omega;
@@ -420,10 +423,12 @@ bool menu_process_event(menu_state_t *m, const button_event_t *evt)
         if (dir == BTN_DIR_ENTER) {
             if (typ == BTN_EVT_SHORT) {
                 /* 短按: 初始化全部 — yaw+编码器+Kalman+PID */
+                ctrl_cmd_t estop = CMD_ESTOP;
+                xQueueSend(g_cmd_queue, &estop, 0);
                 JY61P_zero_yaw();
                 Motor_encReset();
-                g_kf_x = 0.0f; g_kf_y = 0.0f;
-                g_kf_theta = 0.0f; g_kf_v = 0.0f; g_kf_omega = 0.0f;
+                kalman5_init(&g_kf, VERTEX_A_X, VERTEX_A_Y, 0.0f);  /* 朝东, heading=0 */
+                slip_init();
                 pid_reset(&g_pid_heading);
                 pid_reset(&g_pid_speed_l);
                 pid_reset(&g_pid_speed_r);

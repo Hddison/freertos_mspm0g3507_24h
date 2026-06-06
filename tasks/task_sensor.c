@@ -39,7 +39,8 @@ volatile float g_kf_v     = 0.0f;
 volatile float g_kf_omega = 0.0f;
 
 /* 完整 Kalman 实例 (仅供 Sensor 任务修改) */
-static kalman5_t g_kf;
+// static kalman5_t g_kf;
+kalman5_t g_kf;
 
 /* 完整传感器数据 (volatile — Sensor 写, Control/LCD 读) */
 volatile sensor_data_t g_sensor_data;
@@ -212,6 +213,18 @@ void vTaskSensor(void *pvParameters)
                 arc_tan = atan2f(dx, -dy);
             }
             kalman5_update_cross_track(&g_kf, cross_track, arc_tan);
+        }
+
+        /* ── 7b. 顶点位置修正 (Control 任务触发) ── */
+        {
+            extern volatile int g_kf_vertex_trigger;
+            int vid = g_kf_vertex_trigger;
+            if (vid >= 0 && vid <= 3) {
+                const float vx[] = {VERTEX_A_X, VERTEX_B_X, VERTEX_C_X, VERTEX_D_X};
+                const float vy[] = {VERTEX_A_Y, VERTEX_B_Y, VERTEX_C_Y, VERTEX_D_Y};
+                kalman5_update_vertex(&g_kf, vx[vid], vy[vid]);
+                g_kf_vertex_trigger = -1;  /* 清除触发 */
+            }
         }
 
         /* ── 8. 写 volatile 全局 (Control 任务读取) ── */

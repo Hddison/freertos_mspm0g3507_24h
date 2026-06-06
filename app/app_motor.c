@@ -48,7 +48,7 @@ void motor_speed_apply(float left_target, float right_target, float dt,
     int16_t lp = (int16_t)lpwm;
     int16_t rp = (int16_t)rpwm;
 
-    Motor_set(rp, -lp);  /* A=右, B=左(dir=-1) */
+    Motor_set(rp, lp);  /* A=右, B=左(dir=-1) */
 
     if (out_lp) *out_lp = lp;
     if (out_rp) *out_rp = rp;

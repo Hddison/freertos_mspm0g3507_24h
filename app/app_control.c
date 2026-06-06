@@ -27,6 +27,7 @@ float g_target_speed = DEFAULT_TARGET_SPEED;
 
 competition_t g_comp;
 volatile int g_ctrl_mode = CTRL_IDLE;
+volatile int g_kf_vertex_trigger = -1;  /* 顶点修正触发: -1=无, 0=A,1=B,2=C,3=D */
 
 /* ══════════ 路径段表 ══════════ */
 
@@ -87,7 +88,7 @@ static void advance_segment(void)
     const path_segment_t *seg = &g_comp.segments[g_comp.active_segment];
     g_comp.mode           = seg->mode;
     g_ctrl_mode            = seg->mode;
-    g_comp.segment_start_tick = 0;
+    g_comp.segment_start_tick = g_comp.elapsed_ms;
     g_comp.segment_start_dist = (Motor_enc1Dist()+Motor_enc2Dist())*0.5f;
     g_comp.line_lost_cnt  = 0;
     g_comp.line_detected  = false;
@@ -97,7 +98,7 @@ static void advance_segment(void)
         extern volatile float g_kf_x, g_kf_y;
         float dx = seg->target_x - g_kf_x;
         float dy = seg->target_y - g_kf_y;
-        g_comp.segment_target_hdg = atan2f(dy, dx) * 57.29578f;  /* rad→° */
+        g_comp.segment_target_hdg = seg->target_heading * 57.29578f;  /* rad→° */
         g_comp.segment_distance   = sqrtf(dx*dx + dy*dy);
     }
 
@@ -182,13 +183,13 @@ void control_start_task(uint8_t task_id)
     const path_segment_t *seg = &g_comp.segments[0];
     g_comp.mode = seg->mode;
     g_ctrl_mode = seg->mode;
-    g_comp.segment_start_tick = 0;
+    g_comp.segment_start_tick = g_comp.elapsed_ms;
     g_comp.segment_start_dist = (Motor_enc1Dist()+Motor_enc2Dist())*0.5f;
     if (seg->mode == CTRL_POSITION) {
         extern volatile float g_kf_x, g_kf_y;
         float dx = seg->target_x - g_kf_x;
         float dy = seg->target_y - g_kf_y;
-        g_comp.segment_target_hdg = atan2f(dy, dx) * 57.29578f;  /* rad→° */
+        g_comp.segment_target_hdg = seg->target_heading * 57.29578f;  /* rad→° */
         g_comp.segment_distance   = sqrtf(dx*dx + dy*dy);
     }
 
@@ -229,7 +230,7 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
 
         /* 距离: 编码器已走 → 剩余 */
         float enc_avg = (Motor_enc1Dist() + Motor_enc2Dist()) * 0.5f;
-        float traveled = enc_avg - g_comp.segment_start_dist;
+        float traveled = enc_avg;
         float remain   = g_comp.segment_distance - traveled;
 
         /* 速度曲线 */
@@ -249,8 +250,9 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
         motor_speed_apply(target_spd + speed_diff,
                           target_spd - speed_diff, dt, NULL, NULL);
 
-        /* 到点: 编码器走够 */
-        if (remain <= 0.0f) {
+        /* 到点: 编码器走够 + 最小段时长 500ms (防误触发) */
+        if (remain <= 0.0f &&
+            (g_comp.elapsed_ms - g_comp.segment_start_tick) > 500) {
             advance_segment();
         }
         break;
@@ -301,13 +303,16 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
 
         if (g_comp.vertex_pause_start == 0) {
             g_comp.vertex_pause_start = g_comp.elapsed_ms;
+            extern void buzzer_beep(uint16_t ms);
+            buzzer_beep(200);  /* 顶点到达鸣笛 */
         }
-
-        /* Kalman 顶点位置修正 — 标记由 Sensor 任务在下一周期执行 */
-        if (seg->vertex_id >= 0) {
-            /* TODO: 通过全局标志通知 Sensor 任务调用 kalman5_update_vertex() */
-            /* 顶点坐标从 VERTEX_A~D_X/Y 宏获取 */
-        }
+        Motor_encReset();  /* 重置编码器, 让下一段 POSITION 模式的距离计算更准确 */ 
+        /* Kalman 顶点位置修正 — 通知 Sensor 任务执行 */
+        // if (seg->vertex_id >= 0) {
+        //     extern volatile int g_kf_vertex_trigger;
+        //     g_kf_vertex_trigger = seg->vertex_id;
+            
+        // }
 
         /* 800ms 后前进到下一段 */
         if ((g_comp.elapsed_ms - g_comp.vertex_pause_start) >= VERTEX_PAUSE_MS) {

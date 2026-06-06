@@ -74,6 +74,33 @@ void HardFault_Handler(void)
 
 flash_config_t g_flash_cfg;
 
+/* ══════════ Buzzer 任务 (优先级 7, 阻塞等命令) ══════════ */
+
+static QueueHandle_t g_buzzer_queue;
+
+/* 非阻塞: 发送蜂鸣命令到 Buzzer 任务 */
+void buzzer_beep(uint16_t dur_ms)
+{
+    xQueueSend(g_buzzer_queue, &dur_ms, 0);
+}
+
+static void vTaskBuzzer(void *pv)
+{
+    (void)pv;
+    extern bool g_buzzer_enabled;
+    extern void Buzzer_set(uint8_t on);
+    uint16_t dur;
+    for (;;) {
+        if (xQueueReceive(g_buzzer_queue, &dur, portMAX_DELAY)) {
+            if (g_buzzer_enabled) {
+                Buzzer_set(1);
+                vTaskDelay(pdMS_TO_TICKS(dur));
+                Buzzer_set(0);
+            }
+        }
+    }
+}
+
 /* ══════════ main ══════════ */
 
 int main(void)
@@ -221,12 +248,18 @@ int main(void)
                           TASK_PRIO_CONTROL, control_stack, &control_tcb);
     if (h == NULL) { BSP_UART_tx_str("FATAL: Control task\r\n"); for(;;){} }
 
-    /* Sensor 任务: heap 分配 (最高优先级) */
-    BaseType_t ret = xTaskCreate(vTaskSensor, "SENSOR", STACK_SENSOR, NULL,
-                                 TASK_PRIO_SENSOR, NULL);
+    /* Buzzer 任务: 高优先级, 阻塞等命令, 不占 CPU */
+    g_buzzer_queue = xQueueCreate(4, sizeof(uint16_t));
+    BaseType_t ret = xTaskCreate(vTaskBuzzer, "BUZZER", 128, NULL,
+                                 7, NULL);
+    if (ret != pdPASS) { BSP_UART_tx_str("FATAL: Buzzer task\r\n"); for(;;){} }
+
+    /* Sensor 任务: heap 分配 */
+    ret = xTaskCreate(vTaskSensor, "SENSOR", STACK_SENSOR, NULL,
+                      TASK_PRIO_SENSOR, NULL);
     if (ret != pdPASS) { BSP_UART_tx_str("FATAL: Sensor task\r\n"); for(;;){} }
 
-    BSP_UART_tx_str("[RTOS] All 4 tasks created\r\n");
+    BSP_UART_tx_str("[RTOS] All 5 tasks created\r\n");
     BSP_UART_tx_str("[RTOS] Starting scheduler...\r\n");
 
     /* Step 15: 启动调度器 */

@@ -86,7 +86,7 @@
 #define VERTEX_ARRIVAL_DIST  30.0f
 
 /* 顶点停车时间 (ms) */
-#define VERTEX_PAUSE_MS      800U
+#define VERTEX_PAUSE_MS      10U
 
 /* ═══════════════════════ 控制参数默认值 ═══════════════════════ */
 
@@ -131,10 +131,10 @@
 #define SPEED_RAMP_DIST      200.0f
 
 /* 最低巡线速度 (mm/s) — 减速下限 */
-#define MIN_CRUISE_SPEED     50.0f
+#define MIN_CRUISE_SPEED     100.0f
 
 /* 出线判定: 连续丢失线周期数 */
-#define LINE_LOST_THRESH     5
+#define LINE_LOST_THRESH     10
 
 /* 灰度通道宽度 (mm/通道) — 12 通道覆盖约 132mm */
 #define CHANNEL_WIDTH_MM     11.0f

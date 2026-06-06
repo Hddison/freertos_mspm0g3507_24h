@@ -298,7 +298,11 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
     /* ── 顶点停车 ── */
     case CTRL_VERTEX_PAUSE: {
         Motor_set(0, 0);
-
+        pid_reset(&g_pid_heading);
+        pid_reset(&g_pid_speed_l);
+        pid_reset(&g_pid_speed_r);
+        pid_reset(&g_pid_steer);
+        pid_reset(&g_pid_pos);
         if (g_comp.vertex_pause_start == 0) {
             g_comp.vertex_pause_start = g_comp.elapsed_ms;
             extern void buzzer_beep(uint16_t ms);

@@ -60,7 +60,7 @@ static const path_segment_t path_task3[] = {
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
     {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧上行 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
-    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.3569f,  0, 3},  /* B→D 西南 */
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.4569f,  0, 3},  /* B→D 西南 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
     {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧上行 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},

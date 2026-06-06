@@ -56,6 +56,9 @@ extern flash_config_t g_flash_cfg;
 extern bool g_buzzer_enabled;
 /* LED 心跳使能 */
 extern bool g_led_heartbeat_enabled;
+/* Debug 单步模式 */
+extern bool g_debug_step_mode;
+extern volatile bool g_debug_step_continue;
 
 /* ══════════ 前向声明 ══════════ */
 
@@ -175,10 +178,11 @@ static const menu_item_t menu_settings[] = {
     {"Motor Config",       MENU_TYPE_SUBMENU, menu_motor,     0},
     {"Buzzer: OFF",        MENU_TYPE_ACTION,  NULL, 1},
     {"LED: OFF",           MENU_TYPE_ACTION,  NULL, 2},
-    {"Return",             MENU_TYPE_RETURN, NULL, 3},
+    {"Debug Step: OFF",    MENU_TYPE_ACTION,  NULL, 3},
+    {"Return",             MENU_TYPE_RETURN, NULL, 4},
     {NULL, 0, NULL, 0},
 };
-#define MENU_SETTINGS_COUNT  4
+#define MENU_SETTINGS_COUNT  5
 
 /* 主菜单 */
 static const menu_item_t menu_main[] = {
@@ -437,8 +441,17 @@ extern void slip_init(void);
                 return true;
             }
             if (typ == BTN_EVT_LONG) {
-                /* 长按: 启动竞赛任务 */
+                /* 长按 CENTER: 启动竞赛任务 */
                 g_pending_cmd = (ctrl_cmd_t)(CMD_START_TASK1 + m->task_id - 1);
+                return true;
+            }
+        }
+        /* debug 单步模式: BACK 长按 → 继续下一段 */
+        if (dir == BTN_DIR_BACK && typ == BTN_EVT_LONG) {
+            extern bool g_debug_step_mode;
+            extern volatile bool g_debug_step_continue;
+            if (g_debug_step_mode) {
+                g_debug_step_continue = true;
                 return true;
             }
         }
@@ -709,9 +722,9 @@ extern void slip_init(void);
                         m->elapsed_ms = 0;
                         m->needs_full_redraw = true;
                     } else if (m->menu == menu_settings) {
-                        /* 系统设置: 蜂鸣器/LED 开关 */
                         if (it->id == 1) g_buzzer_enabled = !g_buzzer_enabled;
                         if (it->id == 2) g_led_heartbeat_enabled = !g_led_heartbeat_enabled;
+                        if (it->id == 3) g_debug_step_mode = !g_debug_step_mode;
                     } else if (it->id >= 100 && it->id <= 105) {
                         /* 按键重映射: 循环切换逻辑方向 (编辑临时缓冲, 保存后才应用) */
                         uint8_t idx = (uint8_t)(it->id - 100);
@@ -1024,11 +1037,12 @@ static void render_menu(const menu_state_t *m)
             while (*val && p < 27) title_buf[p++] = *val++;
             title_buf[p] = 0;
             display_title = title_buf;
-        } else if (m->menu == menu_settings && (idx == 1 || idx == 2)) {
+        } else if (m->menu == menu_settings && (idx == 1 || idx == 2 || idx == 3)) {
             int p = 0;
             while (m->menu[idx].title[p] && p < 20) { title_buf[p] = m->menu[idx].title[p]; p++; }
             const char *state = (idx == 1) ? (g_buzzer_enabled ? "ON " : "OFF") :
-                                             (g_led_heartbeat_enabled ? "ON " : "OFF");
+                                (idx == 2) ? (g_led_heartbeat_enabled ? "ON " : "OFF") :
+                                             (g_debug_step_mode ? "ON " : "OFF");
             while (*state && p < 27) title_buf[p++] = *state++;
             title_buf[p] = 0;
             display_title = title_buf;

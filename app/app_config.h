@@ -134,7 +134,7 @@
 #define MIN_CRUISE_SPEED     100.0f
 
 /* 出线判定: 连续丢失线周期数 */
-#define LINE_LOST_THRESH     10
+#define LINE_LOST_THRESH     5
 
 /* 灰度通道宽度 (mm/通道) — 12 通道覆盖约 132mm */
 #define CHANNEL_WIDTH_MM     11.0f

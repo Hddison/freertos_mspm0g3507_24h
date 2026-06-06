@@ -28,6 +28,8 @@ float g_target_speed = DEFAULT_TARGET_SPEED;
 competition_t g_comp;
 volatile int g_ctrl_mode = CTRL_IDLE;
 volatile int g_kf_vertex_trigger = -1;  /* 顶点修正触发: -1=无, 0=A,1=B,2=C,3=D */
+bool    g_debug_step_mode = false;        /* debug 单步模式 */
+volatile bool g_debug_step_continue = false; /* 长按继续信号 */
 
 /* ══════════ 路径段表 ══════════ */
 
@@ -58,7 +60,7 @@ static const path_segment_t path_task3[] = {
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 2},
     {CTRL_LINE_TRACK,   VERTEX_B_X, VERTEX_B_Y, 0,    0.0f,      1, -1},  /* C→B 右弧上行 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 1},
-    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.2469f,  0, 3},  /* B→D 西南 */
+    {CTRL_POSITION,     VERTEX_D_X, VERTEX_D_Y, 1280, -2.3569f,  0, 3},  /* B→D 西南 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 3},
     {CTRL_LINE_TRACK,   VERTEX_A_X, VERTEX_A_Y, 0,    0.0f,     -1, -1},  /* D→A 左弧上行 */
     {CTRL_VERTEX_PAUSE, 0, 0, 0, 0, 0, 0},
@@ -302,21 +304,30 @@ void control_run(const kalman5_t *kf, float line_position, uint16_t gray_raw,
         if (g_comp.vertex_pause_start == 0) {
             g_comp.vertex_pause_start = g_comp.elapsed_ms;
             extern void buzzer_beep(uint16_t ms);
-            buzzer_beep(200);  /* 顶点到达鸣笛 */
+            buzzer_beep(200);
         }
-        Motor_encReset();  /* 重置编码器, 让下一段 POSITION 模式的距离计算更准确 */ 
-        /* Kalman 顶点位置修正 — 通知 Sensor 任务执行 */
-        // if (seg->vertex_id >= 0) {
-        //     extern volatile int g_kf_vertex_trigger;
-        //     g_kf_vertex_trigger = seg->vertex_id;
-            
-        // }
 
-        /* 800ms 后前进到下一段 */
-        if ((g_comp.elapsed_ms - g_comp.vertex_pause_start) >= VERTEX_PAUSE_MS) {
-            g_comp.vertex_pause_start = 0;
-            pid_reset(&g_pid_heading);
-            advance_segment();
+        /* Kalman 顶点修正 */
+        if (seg->vertex_id >= 0) {
+            extern volatile int g_kf_vertex_trigger;
+            g_kf_vertex_trigger = seg->vertex_id;
+        }
+
+        /* debug 单步模式: 等 CENTER 长按; 正常模式: 800ms 自动前进 */
+        if (g_debug_step_mode) {
+            extern volatile bool g_debug_step_continue;
+            if (g_debug_step_continue) {
+                g_debug_step_continue = false;
+                g_comp.vertex_pause_start = 0;
+                pid_reset(&g_pid_heading);
+                advance_segment();
+            }
+        } else {
+            if ((g_comp.elapsed_ms - g_comp.vertex_pause_start) >= VERTEX_PAUSE_MS) {
+                g_comp.vertex_pause_start = 0;
+                pid_reset(&g_pid_heading);
+                advance_segment();
+            }
         }
         break;
     }

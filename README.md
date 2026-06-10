@@ -26,7 +26,7 @@
 ├── hal/              # HAL 层: SPI 递归互斥锁
 ├── app/              # 应用层
 │   ├── app_config.h          # 全局常量 (赛道几何/PID默认值/任务参数)
-│   ├── app_control.c/h       # 3 层级联 PID + 竞赛状态机 + LINE_SEEK 寻线
+│   ├── app_control.c/h       # 3 层级联 PID + 竞赛状态机
 │   ├── app_pid.c/h           # PID 控制器 (抗积分饱和)
 │   ├── app_kalman.c/h        # 5 状态 EKF 传感器融合
 │   ├── app_motor.c/h         # 电机速度闭环 (per-motor PID)
@@ -56,22 +56,16 @@
 ## 控制流程
 
 ```
-CTRL_POSITION ──距离到──→ CTRL_LINE_SEEK ──单线居中──→ CTRL_LINE_TRACK
-(航向保持)              (慢速寻线+渐进航向)          (灰度循迹)
-                                                         │
-                                              CTRL_VERTEX_PAUSE ←── 出线
-                                              (声光+Kalman修正)
-                                                     │
-                                                     ↓
-                                              CTRL_POSITION (下一段)
+CTRL_POSITION ──距离到──→ CTRL_LINE_TRACK
+(航向保持)              (灰度循迹)
+                             │
+                  CTRL_VERTEX_PAUSE ←── 出线
+                  (声光+Kalman修正)
+                         │
+                         ↓
+                  CTRL_POSITION (下一段)
 ```
 
-### LINE_SEEK 寻线过渡
-- 距离到达后慢速前探 (80mm/s)
-- 航向从当前角渐进至弧线切向角 (800ms)
-- 灰度检测到单黑块且居中 → 切入 LINE_TRACK
-- 遇线时用线位置修正航向, 对抗 JY61P 漂移
-- 150mm 超距兜底
 
 ## 快速开始
 
@@ -155,7 +149,7 @@ W25Q128 Sector 0, XOR checksum:
 
 | 版本 | 说明 |
 |------|------|
-| v2.1 | 完赛: 4圈全通, LINE_SEEK 寻线过渡, HAL_SPI 互斥, DMA BSP |
+| v2.1 | 完赛: 4圈全通, HAL_SPI 互斥, DMA BSP |
 | v2.0 | 3层级联 PID + 5状态 EKF + 多级菜单 |
 | v1.0 | P 控制器 + 偏航角恢复 + 基础 Flash 存储 |
 
